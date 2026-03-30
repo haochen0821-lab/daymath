@@ -1,4 +1,4 @@
-const CACHE_NAME = "daymath-v2";
+const CACHE_NAME = "daymath-v3";
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();

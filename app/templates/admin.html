@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daymath 後台管理</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:"Noto Sans TC",-apple-system,sans-serif; background:#F5F7FA; color:#2D3436; padding:20px; }
+        .container { max-width:640px; margin:0 auto; }
+        h1 { font-size:24px; margin-bottom:24px; color:#6C63FF; }
+        h2 { font-size:18px; margin:24px 0 12px; }
+        .card { background:#fff; border-radius:16px; padding:20px; margin-bottom:16px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+        .back-link { display:inline-block; margin-bottom:16px; color:#6C63FF; text-decoration:none; font-weight:600; }
+        .back-link:hover { text-decoration:underline; }
+
+        /* Profile list */
+        .profile-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f0f0f0; }
+        .profile-row:last-child { border-bottom:none; }
+        .p-avatar { font-size:32px; }
+        .p-name { flex:1; }
+        .p-name input { width:100%; padding:6px 10px; font-size:15px; border:2px solid #E8E6FF; border-radius:8px; outline:none; }
+        .p-name input:focus { border-color:#6C63FF; }
+        .p-actions { display:flex; gap:6px; }
+        .btn { padding:6px 14px; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; }
+        .btn-save { background:#6C63FF; color:#fff; }
+        .btn-save:hover { background:#5A52D5; }
+        .btn-del { background:#FFE8E8; color:#FF6B6B; }
+        .btn-del:hover { background:#FF6B6B; color:#fff; }
+
+        /* Avatar picker */
+        .avatar-edit { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+        .avatar-edit button { width:36px; height:36px; font-size:22px; border:2px solid #E8E6FF; border-radius:8px; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+        .avatar-edit button.sel { border-color:#6C63FF; background:#E8E6FF; }
+
+        /* Icon upload */
+        .icon-preview { width:128px; height:128px; border-radius:16px; border:2px dashed #ddd; display:flex; align-items:center; justify-content:center; margin:12px 0; overflow:hidden; background:#fafafa; }
+        .icon-preview img { width:100%; height:100%; object-fit:cover; }
+        .file-input { margin:8px 0; }
+        .btn-upload { background:#6C63FF; color:#fff; padding:10px 24px; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; }
+        .btn-upload:hover { background:#5A52D5; }
+        .msg { padding:8px 14px; border-radius:8px; margin-top:8px; font-size:14px; font-weight:500; }
+        .msg-ok { background:#E8F8F0; color:#2ECC71; }
+        .msg-err { background:#FFE8E8; color:#FF6B6B; }
+        .empty { color:#999; padding:16px 0; text-align:center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="back-link">← 回到首頁</a>
+    <h1>Daymath 後台管理</h1>
+
+    <!-- PWA Icon -->
+    <div class="card">
+        <h2>📱 PWA Icon（512×512 PNG）</h2>
+        <div class="icon-preview" id="iconPreview">
+            <span style="color:#ccc;font-size:48px">?</span>
+        </div>
+        <input type="file" accept="image/png,image/jpeg,image/webp" class="file-input" id="iconFile">
+        <br>
+        <button class="btn-upload" onclick="uploadIcon()">上傳 Icon</button>
+        <div id="iconMsg"></div>
+    </div>
+
+    <!-- Profiles -->
+    <div class="card">
+        <h2>👥 角色管理</h2>
+        <div id="profileList"><div class="empty">載入中...</div></div>
+    </div>
+</div>
+
+<script>
+const AVATARS = [
+    "🧑","👦","👧","👸","🤴","🦸","🦹","🐱","🐶","🐻","🦊","🐧","🦄"
+];
+
+// ─── Icon ───
+(function loadIconPreview() {
+    const img = new Image();
+    img.onload = () => {
+        document.getElementById("iconPreview").innerHTML = "";
+        document.getElementById("iconPreview").appendChild(img);
+    };
+    img.src = "/static/icon-512.png?t=" + Date.now();
+})();
+
+function uploadIcon() {
+    const f = document.getElementById("iconFile").files[0];
+    if (!f) return showMsg("iconMsg", "請先選擇檔案", "err");
+    const fd = new FormData();
+    fd.append("icon", f);
+    fetch("/api/icon", { method: "POST", body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                showMsg("iconMsg", "上傳成功！重新整理即可看到新 icon", "ok");
+                const img = new Image();
+                img.src = "/static/icon-512.png?t=" + Date.now();
+                img.onload = () => {
+                    const box = document.getElementById("iconPreview");
+                    box.innerHTML = "";
+                    box.appendChild(img);
+                };
+            } else {
+                showMsg("iconMsg", d.error || "上傳失敗", "err");
+            }
+        })
+        .catch(() => showMsg("iconMsg", "上傳失敗", "err"));
+}
+
+// ─── Profiles ───
+function loadProfiles() {
+    fetch("/api/profiles").then(r => r.json()).then(profiles => {
+        const el = document.getElementById("profileList");
+        if (!profiles.length) { el.innerHTML = '<div class="empty">目前沒有角色</div>'; return; }
+        el.innerHTML = profiles.map(p => `
+            <div class="profile-row" data-id="${p.id}">
+                <span class="p-avatar" id="av_${p.id}">${p.avatar}</span>
+                <div class="p-name">
+                    <input value="${esc(p.name)}" id="name_${p.id}" maxlength="10">
+                    <div class="avatar-edit" id="avedit_${p.id}" style="display:none">
+                        ${AVATARS.map(a => `<button onclick="pickAv('${p.id}','${a}')" class="${a===p.avatar?'sel':''}">${a}</button>`).join("")}
+                    </div>
+                </div>
+                <div class="p-actions">
+                    <button class="btn btn-save" onclick="toggleAvEdit('${p.id}')">頭像</button>
+                    <button class="btn btn-save" onclick="saveName('${p.id}')">儲存</button>
+                    <button class="btn btn-del" onclick="delProfile('${p.id}','${esc(p.name)}')">刪除</button>
+                </div>
+            </div>
+        `).join("");
+    });
+}
+
+function toggleAvEdit(id) {
+    const el = document.getElementById("avedit_" + id);
+    el.style.display = el.style.display === "none" ? "flex" : "none";
+}
+
+function pickAv(id, av) {
+    fetch("/api/profiles/" + id, {
+        method: "PUT",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ avatar: av })
+    }).then(() => loadProfiles());
+}
+
+function saveName(id) {
+    const name = document.getElementById("name_" + id).value.trim();
+    if (!name) return alert("名字不能空白");
+    fetch("/api/profiles/" + id, {
+        method: "PUT",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ name })
+    }).then(() => loadProfiles());
+}
+
+function delProfile(id, name) {
+    if (!confirm("確定要刪除「" + name + "」嗎？\n所有成績紀錄也會一併刪除！")) return;
+    fetch("/api/profiles/" + id, { method: "DELETE" }).then(() => loadProfiles());
+}
+
+function esc(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function showMsg(elId, text, type) {
+    const el = document.getElementById(elId);
+    el.className = "msg msg-" + type;
+    el.textContent = text;
+    setTimeout(() => { el.textContent = ""; el.className = ""; }, 3000);
+}
+
+loadProfiles();
+</script>
+</body>
+</html>

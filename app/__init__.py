@@ -4,9 +4,8 @@ from flask import Flask
 
 def create_app():
     app = Flask(__name__)
-
-    # 用啟動時間戳當版本號，每次重啟自動刷新快取
     app.config["APP_VERSION"] = str(int(time.time()))
+    app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5MB upload limit
 
     @app.context_processor
     def inject_version():
@@ -19,7 +18,13 @@ def create_app():
             response.headers["Pragma"] = "no-cache"
         return response
 
+    from app.db import init_db
+    init_db()
+
     from app.routes import main
     app.register_blueprint(main)
+
+    from app.api import api
+    app.register_blueprint(api)
 
     return app

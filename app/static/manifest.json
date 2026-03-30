@@ -1,16 +1,25 @@
 {
-  "name": "Daymath - 心算訓練",
+  "name": "Daymath - 心算耐力與速度訓練",
   "short_name": "Daymath",
+  "description": "兒童心算練習工具，多難度分級與雙重計時模式",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#F5F7FA",
-  "theme_color": "#4A90D9",
+  "orientation": "portrait",
+  "background_color": "#FFF8F0",
+  "theme_color": "#6C63FF",
   "icons": [
     {
       "src": "/static/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
