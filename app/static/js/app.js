@@ -705,29 +705,68 @@ function HistoryTab({ profile }) {
           <h3 style={{fontSize:"14px",fontWeight:700,marginBottom:"12px"}}>
             {TXT.timer} 每日練習時間（所有角色）
           </h3>
-          <div className="pt-chart">
-            {ptDays.map(day => {
-              const dayLabel = day.slice(5); // MM-DD
-              return (
-                <div key={day} className="pt-day-col">
-                  <div className="pt-bars">
-                    {profileIds.map((pid, pi) => {
-                      const ms = ptByDay[day]?.[pid]?.ms || 0;
-                      const h = Math.max(0, (ms / ptMax) * 100);
-                      const isMe = profile && pid === profile.id;
+          {(() => {
+            // 計算 Y 軸刻度（3~5 格，取整分鐘或整秒）
+            const yTicks = [];
+            const maxSec = Math.ceil(ptMax / 1000);
+            let step;
+            if (maxSec <= 60) step = 15;
+            else if (maxSec <= 300) step = 60;
+            else if (maxSec <= 900) step = 180;
+            else if (maxSec <= 1800) step = 300;
+            else step = 600;
+            for (let s = 0; s <= maxSec + step; s += step) {
+              yTicks.push(s);
+              if (yTicks.length >= 6) break;
+            }
+            const yMax = yTicks[yTicks.length - 1] * 1000; // ms
+            function fmtAxis(sec) {
+              if (sec === 0) return "0";
+              if (sec < 60) return sec + "s";
+              const m = Math.floor(sec / 60);
+              const rs = sec % 60;
+              return rs === 0 ? m + "m" : m + "m" + rs + "s";
+            }
+            return (
+              <div className="pt-chart-wrap">
+                <div className="pt-y-axis">
+                  {[...yTicks].reverse().map(s => (
+                    <span key={s} className="pt-y-label">{fmtAxis(s)}</span>
+                  ))}
+                </div>
+                <div className="pt-chart-body">
+                  <div className="pt-grid-lines">
+                    {yTicks.map(s => (
+                      <div key={s} className="pt-grid-line" style={{bottom: (s * 1000 / yMax * 100) + "%"}} />
+                    ))}
+                  </div>
+                  <div className="pt-chart">
+                    {ptDays.map(day => {
+                      const dayLabel = day.slice(5);
                       return (
-                        <div key={pid} className={"pt-bar" + (isMe ? " pt-bar-me" : "")}
-                          style={{height: h + "%", background: barColors[pi % barColors.length]}}
-                          title={allProfiles[pid].name + ": " + fmtMs(ms)}>
+                        <div key={day} className="pt-day-col">
+                          <div className="pt-bars">
+                            {profileIds.map((pid, pi) => {
+                              const ms = ptByDay[day]?.[pid]?.ms || 0;
+                              const h = yMax > 0 ? Math.max(0, (ms / yMax) * 100) : 0;
+                              const isMe = profile && pid === profile.id;
+                              return (
+                                <div key={pid} className={"pt-bar" + (isMe ? " pt-bar-me" : "")}
+                                  style={{height: h + "%", background: barColors[pi % barColors.length]}}
+                                  title={allProfiles[pid].name + ": " + fmtMs(ms)}>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <span className="chart-label">{dayLabel}</span>
                         </div>
                       );
                     })}
                   </div>
-                  <span className="chart-label">{dayLabel}</span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })()}
           <div className="chart-legend" style={{flexWrap:"wrap"}}>
             {profileIds.map((pid, pi) => (
               <span key={pid} className="legend-item">

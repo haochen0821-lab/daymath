@@ -1314,17 +1314,63 @@ body {
 .legend-correct { background: var(--primary); }
 
 /* --- Practice Time Chart --- */
+.pt-chart-wrap {
+  display: flex;
+  gap: 4px;
+  height: 160px;
+  margin-bottom: 8px;
+}
+
+.pt-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 4px 18px 0;
+  flex-shrink: 0;
+  min-width: 32px;
+}
+
+.pt-y-label {
+  font-size: 10px;
+  color: var(--text-light);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-chart-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.pt-grid-lines {
+  position: absolute;
+  inset: 0 0 18px 0;
+  pointer-events: none;
+}
+
+.pt-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #F0EEFF;
+}
+
 .pt-chart {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 140px;
-  padding: 8px 0;
+  height: calc(100% - 18px);
+  position: relative;
+  z-index: 1;
 }
 
 .pt-day-col {
   flex: 1;
-  min-width: 30px;
+  min-width: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1342,7 +1388,7 @@ body {
 .pt-bar {
   flex: 1;
   border-radius: 4px 4px 0 0;
-  min-height: 2px;
+  min-height: 0;
   transition: height 0.4s ease;
   opacity: 0.7;
 }
