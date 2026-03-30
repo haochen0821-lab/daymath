@@ -5,30 +5,32 @@
  * - 出題 / 答題 / 即時回饋
  * - 統計（正確數、答題數、每題耗時）
  * - 練習結束後產出成績報告
- * - LocalStorage 歷史紀錄
+ * - LocalStorage 歷史紀錄（依角色分開存）
  */
 
 // eslint-disable-next-line no-unused-vars
-function useSession() {
+function useSession(profileId) {
   const { useState, useCallback, useRef } = React;
 
   const timer = useTimer();
 
   // --- Session 設定 ---
   const [config, setConfig] = useState(null);
-  // config = { operation, level, mode, value }
-  // mode: 'timeAttack' → value = 分鐘數
-  // mode: 'sprint'     → value = 題數
 
   // --- 答題狀態 ---
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [answers, setAnswers] = useState([]); // [{ question, userAnswer, correct, timeMs }]
-  const [feedback, setFeedback] = useState(null); // { type: 'correct'|'wrong', correctAnswer }
+  const [answers, setAnswers] = useState([]);
+  const [feedback, setFeedback] = useState(null);
   const [sessionResult, setSessionResult] = useState(null);
 
   const questionStartRef = useRef(null);
+
+  // --- 角色專屬的 storage key ---
+  function storageKey() {
+    return "daymath_history_" + (profileId || "default");
+  }
 
   // --- 產生下一題 ---
   const nextQuestion = useCallback((operation, level) => {
@@ -48,12 +50,8 @@ function useSession() {
     setFeedback(null);
     setSessionResult(null);
 
-    const onFinish = () => {
-      // 限時挑戰：時間到，自動結算（由 finalize 處理）
-    };
-
     if (mode === "timeAttack") {
-      timer.startTimeAttack(value, onFinish);
+      timer.startTimeAttack(value, () => {});
     } else {
       timer.startSprint(value, null);
     }
@@ -83,18 +81,15 @@ function useSession() {
     const newCorrectCount = correct ? correctCount + 1 : correctCount;
     if (correct) setCorrectCount(newCorrectCount);
 
-    // 即時回饋
     const fb = {
       type: correct ? "correct" : "wrong",
       correctAnswer: currentQuestion.answer,
     };
     setFeedback(fb);
 
-    // 判斷是否結束
     const newIndex = questionIndex + 1;
 
     if (config.mode === "sprint" && newAnswers.length >= config.value) {
-      // 定額衝刺：達到目標題數
       timer.finishSprint();
       const result = buildResult(newAnswers, newCorrectCount, config, timer.elapsedSeconds);
       setSessionResult(result);
@@ -109,7 +104,6 @@ function useSession() {
       return { feedback: fb, finished: true, result };
     }
 
-    // 繼續下一題
     setTimeout(() => {
       setFeedback(null);
       nextQuestion(config.operation, config.level);
@@ -117,18 +111,17 @@ function useSession() {
     }, correct ? 300 : 1000);
 
     return { feedback: fb, finished: false };
-  }, [currentQuestion, config, timer, answers, correctCount, questionIndex, nextQuestion]);
+  }, [currentQuestion, config, timer, answers, correctCount, questionIndex, nextQuestion, profileId]);
 
-  // --- 限時挑戰結束時的結算（由 timer onFinish 觸發） ---
+  // --- 限時挑戰結束時的結算 ---
   const finalizeTimeAttack = useCallback(() => {
     if (!config || sessionResult) return;
     const result = buildResult(answers, correctCount, config, config.value * 60);
     setSessionResult(result);
     saveHistory(result);
-  }, [config, answers, correctCount, sessionResult]);
+  }, [config, answers, correctCount, sessionResult, profileId]);
 
-  // 監聽 timer 結束
-React.useEffect(() => {
+  React.useEffect(() => {
     if (timer.isFinished && config?.mode === "timeAttack" && !sessionResult) {
       finalizeTimeAttack();
     }
@@ -164,9 +157,8 @@ React.useEffect(() => {
   // --- LocalStorage 歷史紀錄 ---
   function saveHistory(result) {
     try {
-      const key = "daymath_history";
+      const key = storageKey();
       const history = JSON.parse(localStorage.getItem(key) || "[]");
-      // 存摘要，不存每題詳細
       history.push({
         operation: result.operation,
         level: result.level,
@@ -188,7 +180,7 @@ React.useEffect(() => {
 
   function getHistory(operation, level, mode) {
     try {
-      const history = JSON.parse(localStorage.getItem("daymath_history") || "[]");
+      const history = JSON.parse(localStorage.getItem(storageKey()) || "[]");
       return history.filter(
         (h) =>
           (!operation || h.operation === operation) &&
@@ -205,12 +197,10 @@ React.useEffect(() => {
     if (records.length === 0) return null;
 
     if (mode === "timeAttack") {
-      // 最佳 = 最多答對
       return records.reduce((best, r) =>
         r.correctCount > best.correctCount ? r : best
       );
     } else {
-      // 最佳 = 最短時間
       return records.reduce((best, r) =>
         r.totalSeconds < best.totalSeconds ? r : best
       );
@@ -220,7 +210,6 @@ React.useEffect(() => {
   // --- 中途放棄 ---
   const quitSession = useCallback(() => {
     if (!config) return;
-    // 先讀取時間再停止計時器
     const totalSecs = config.mode === "timeAttack"
       ? (config.value * 60) - timer.remainingSeconds
       : timer.elapsedSeconds;
@@ -230,7 +219,7 @@ React.useEffect(() => {
     if (answers.length > 0) {
       saveHistory(result);
     }
-  }, [config, timer, answers, correctCount]);
+  }, [config, timer, answers, correctCount, profileId]);
 
   // --- 重置 ---
   const resetSession = useCallback(() => {
@@ -245,23 +234,18 @@ React.useEffect(() => {
   }, [timer]);
 
   return {
-    // 設定
     config,
-    // 狀態
     currentQuestion,
     questionIndex,
     correctCount,
     totalAnswered: answers.length,
     feedback,
     sessionResult,
-    // 計時器
     timer,
-    // 操作
     startSession,
     submitAnswer,
     quitSession,
     resetSession,
-    // 歷史
     getHistory,
     getPersonalBest,
   };

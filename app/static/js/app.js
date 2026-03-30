@@ -171,10 +171,183 @@ const TXT = {
   filledStar: "\u2B50",
   flag: "\uD83C\uDFF3\uFE0F",
   pencil: "\u270F\uFE0F",
+  plus: "\u2795",
+  trash: "\uD83D\uDDD1\uFE0F",
+  back: "\u2B05\uFE0F",
+  people: "\uD83D\uDC65",
+  wave: "\uD83D\uDC4B",
 };
 
+// --- 角色頭像選項 ---
+const AVATAR_LIST = [
+  "\uD83E\uDDD1", "\uD83D\uDC66", "\uD83D\uDC67",
+  "\uD83D\uDC78", "\uD83E\uDD34",
+  "\uD83E\uDDB8", "\uD83E\uDDB9",
+  "\uD83D\uDC31", "\uD83D\uDC36", "\uD83D\uDC3B",
+  "\uD83E\uDD8A", "\uD83D\uDC27", "\uD83E\uDD84",
+];
+
+// --- 角色管理工具 ---
+const ProfileStore = {
+  KEY: "daymath_profiles",
+  ACTIVE_KEY: "daymath_active_profile",
+
+  getAll() {
+    try {
+      return JSON.parse(localStorage.getItem(this.KEY) || "[]");
+    } catch { return []; }
+  },
+
+  save(profiles) {
+    localStorage.setItem(this.KEY, JSON.stringify(profiles));
+  },
+
+  add(name, avatar) {
+    const profiles = this.getAll();
+    const id = "p_" + Date.now();
+    profiles.push({ id, name, avatar, createdAt: Date.now() });
+    this.save(profiles);
+    return id;
+  },
+
+  remove(id) {
+    const profiles = this.getAll().filter((p) => p.id !== id);
+    this.save(profiles);
+    // 也清掉該角色的成績
+    try { localStorage.removeItem("daymath_history_" + id); } catch {}
+    // 如果刪掉的是目前選中的角色，清除選中
+    if (this.getActiveId() === id) {
+      localStorage.removeItem(this.ACTIVE_KEY);
+    }
+  },
+
+  getActiveId() {
+    return localStorage.getItem(this.ACTIVE_KEY) || null;
+  },
+
+  setActiveId(id) {
+    localStorage.setItem(this.ACTIVE_KEY, id);
+  },
+
+  getById(id) {
+    return this.getAll().find((p) => p.id === id) || null;
+  },
+};
+
+// --- 角色選擇畫面 ---
+function ProfileScreen({ onSelect }) {
+  const [profiles, setProfiles] = React.useState(ProfileStore.getAll());
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [selectedAvatar, setSelectedAvatar] = React.useState(AVATAR_LIST[0]);
+  const [confirmDelete, setConfirmDelete] = React.useState(null);
+
+  const handleAdd = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const id = ProfileStore.add(trimmed, selectedAvatar);
+    setProfiles(ProfileStore.getAll());
+    setNewName("");
+    setSelectedAvatar(AVATAR_LIST[0]);
+    setShowAdd(false);
+  };
+
+  const handleDelete = (id) => {
+    ProfileStore.remove(id);
+    setProfiles(ProfileStore.getAll());
+    setConfirmDelete(null);
+  };
+
+  const handleSelect = (profile) => {
+    ProfileStore.setActiveId(profile.id);
+    onSelect(profile);
+  };
+
+  return (
+    <div className="profile-screen">
+      <div className="app-header">
+        <h1 className="app-title">Daymath</h1>
+        <p className="app-subtitle">{TXT.sparkle} 心算耐力與速度訓練 {TXT.sparkle}</p>
+      </div>
+
+      <div className="setup-card">
+        <h3>{TXT.people} 選擇你的角色</h3>
+
+        {profiles.length === 0 && !showAdd && (
+          <p className="profile-empty">還沒有角色，快來新增一個吧！</p>
+        )}
+
+        <div className="profile-list">
+          {profiles.map((p) => (
+            <div key={p.id} className="profile-item">
+              <button className="profile-select-btn" onClick={() => handleSelect(p)}>
+                <span className="profile-avatar">{p.avatar}</span>
+                <span className="profile-name">{p.name}</span>
+              </button>
+              {confirmDelete === p.id ? (
+                <div className="profile-confirm-delete">
+                  <span className="confirm-text">確定刪除？</span>
+                  <button className="btn-confirm-yes" onClick={() => handleDelete(p.id)}>刪除</button>
+                  <button className="btn-confirm-no" onClick={() => setConfirmDelete(null)}>取消</button>
+                </div>
+              ) : (
+                <button
+                  className="profile-delete-btn"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(p.id); }}
+                  title={"刪除 " + p.name}
+                >
+                  {TXT.trash}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {!showAdd ? (
+          <button className="btn btn-add-profile" onClick={() => setShowAdd(true)}>
+            {TXT.plus} 新增角色
+          </button>
+        ) : (
+          <div className="profile-add-form">
+            <h4>建立新角色</h4>
+            <div className="avatar-picker">
+              {AVATAR_LIST.map((av) => (
+                <button
+                  key={av}
+                  className={"avatar-option" + (selectedAvatar === av ? " avatar-selected" : "")}
+                  onClick={() => setSelectedAvatar(av)}
+                >
+                  {av}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              className="profile-name-input"
+              placeholder="輸入名字"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              maxLength={10}
+              autoFocus
+            />
+            <div className="profile-add-actions">
+              <button className="btn btn-cute btn-active" onClick={handleAdd} disabled={!newName.trim()}>
+                確認新增
+              </button>
+              <button className="btn btn-cute" onClick={() => { setShowAdd(false); setNewName(""); }}>
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- 設定畫面 ---
-function SetupScreen({ onStart }) {
+function SetupScreen({ onStart, profile, onSwitchProfile }) {
   const [operation, setOperation] = React.useState("addition");
   const [level, setLevel] = React.useState(1);
   const [mode, setMode] = React.useState("timeAttack");
@@ -203,6 +376,18 @@ function SetupScreen({ onStart }) {
         <h1 className="app-title">Daymath</h1>
         <p className="app-subtitle">{TXT.sparkle} 心算耐力與速度訓練 {TXT.sparkle}</p>
       </div>
+
+      {profile && (
+        <div className="current-profile-bar">
+          <span className="current-profile-info">
+            <span className="current-profile-avatar">{profile.avatar}</span>
+            <span>{TXT.wave} {profile.name}</span>
+          </span>
+          <button className="btn-switch-profile" onClick={onSwitchProfile}>
+            {TXT.people} 切換角色
+          </button>
+        </div>
+      )}
 
       <div className="setup-card">
         <h3>{TXT.target} 選擇運算</h3>
@@ -524,10 +709,31 @@ function ResultScreen({ session }) {
 
 // --- 主 App ---
 function App() {
-  const session = useSession();
+  // 嘗試讀取上次的角色
+  const savedId = ProfileStore.getActiveId();
+  const savedProfile = savedId ? ProfileStore.getById(savedId) : null;
 
+  const [profile, setProfile] = React.useState(savedProfile);
+  const session = useSession(profile ? profile.id : null);
+
+  const handleSelectProfile = (p) => {
+    setProfile(p);
+  };
+
+  const handleSwitchProfile = () => {
+    session.resetSession();
+    setProfile(null);
+    localStorage.removeItem("daymath_active_profile");
+  };
+
+  // 沒有選角色 → 角色畫面
+  if (!profile) {
+    return <ProfileScreen onSelect={handleSelectProfile} />;
+  }
+
+  // 選了角色但沒開始 → 設定畫面
   if (!session.config) {
-    return <SetupScreen onStart={session.startSession} />;
+    return <SetupScreen onStart={session.startSession} profile={profile} onSwitchProfile={handleSwitchProfile} />;
   }
 
   return <PracticeScreen session={session} />;
