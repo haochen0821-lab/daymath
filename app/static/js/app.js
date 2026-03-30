@@ -4,9 +4,9 @@
 
 const OPERATION_LABELS = {
   addition: { label: "加法", icon: "+" },
-  subtraction: { label: "減法", icon: "−" },
-  multiplication: { label: "乘法", icon: "×" },
-  division: { label: "除法", icon: "÷" },
+  subtraction: { label: "減法", icon: "\u2212" },
+  multiplication: { label: "乘法", icon: "\u00D7" },
+  division: { label: "除法", icon: "\u00F7" },
 };
 
 const MODE_LABELS = {
@@ -134,16 +134,42 @@ function Confetti({ active }) {
 // --- 星星動畫（答對時） ---
 function StarBurst({ show }) {
   if (!show) return null;
+  const starChar = "\u2B50";
   return (
     <div className="star-burst">
       {[...Array(5)].map((_, i) => (
         <span key={i} className="star" style={{ animationDelay: `${i * 0.05}s` }}>
-          \u2B50
+          {starChar}
         </span>
       ))}
     </div>
   );
 }
+
+// emoji / 文字常數（避免 JSX 中寫 \u escape）
+const TXT = {
+  sparkle: "\u2728",
+  target: "\uD83C\uDFAF",
+  star: "\uD83C\uDF1F",
+  timer: "\u23F1\uFE0F",
+  alarm: "\u23F0",
+  runner: "\uD83C\uDFC3",
+  memo: "\uD83D\uDCDD",
+  rocket: "\uD83D\uDE80",
+  party: "\uD83C\uDF89",
+  cross: "\u274C",
+  check: "\u2705",
+  dash: "\u2796",
+  question: "\u2753",
+  trophy: "\uD83C\uDFC6",
+  fire: "\uD83D\uDD25",
+  muscle: "\uD83D\uDCAA",
+  refresh: "\uD83D\uDD01",
+  bolt: "\u26A1",
+  bullseye: "\uD83C\uDFAF",
+  emptyStar: "\u2606",
+  filledStar: "\u2B50",
+};
 
 // --- 設定畫面 ---
 function SetupScreen({ onStart }) {
@@ -173,11 +199,11 @@ function SetupScreen({ onStart }) {
     <div className="setup-screen">
       <div className="app-header">
         <h1 className="app-title">Daymath</h1>
-        <p className="app-subtitle">\u2728 \u5FC3\u7B97\u8010\u529B\u8207\u901F\u5EA6\u8A13\u7DF4 \u2728</p>
+        <p className="app-subtitle">{TXT.sparkle} 心算耐力與速度訓練 {TXT.sparkle}</p>
       </div>
 
       <div className="setup-card">
-        <h3>\uD83C\uDFAF \u9078\u64C7\u904B\u7B97</h3>
+        <h3>{TXT.target} 選擇運算</h3>
         <div className="btn-group">
           {Object.entries(OPERATION_LABELS).map(([key, { label, icon }]) => (
             <button
@@ -192,7 +218,7 @@ function SetupScreen({ onStart }) {
       </div>
 
       <div className="setup-card">
-        <h3>\uD83C\uDF1F \u9078\u64C7\u96E3\u5EA6</h3>
+        <h3>{TXT.star} 選擇難度</h3>
         <div className="btn-group level-group">
           {Object.entries(operations[operation].levels).map(([lvl, info]) => {
             const icon = LEVEL_ICONS[lvl] || LEVEL_ICONS[1];
@@ -216,25 +242,25 @@ function SetupScreen({ onStart }) {
       </div>
 
       <div className="setup-card">
-        <h3>\u23F1\uFE0F \u9078\u64C7\u6A21\u5F0F</h3>
+        <h3>{TXT.timer} 選擇模式</h3>
         <div className="btn-group">
           <button
             className={`btn btn-cute ${mode === "timeAttack" ? "btn-active" : ""}`}
             onClick={() => setMode("timeAttack")}
           >
-            \u23F0 \u9650\u6642\u6311\u6230
+            {TXT.alarm} 限時挑戰
           </button>
           <button
             className={`btn btn-cute ${mode === "sprint" ? "btn-active" : ""}`}
             onClick={() => setMode("sprint")}
           >
-            \uD83C\uDFC3 \u5B9A\u984D\u885D\u523A
+            {TXT.runner} 定額衝刺
           </button>
         </div>
       </div>
 
       <div className="setup-card">
-        <h3>{mode === "timeAttack" ? "\u23F0 \u6642\u9593\u8A2D\u5B9A" : "\uD83D\uDCDD \u984C\u6578\u8A2D\u5B9A"}</h3>
+        <h3>{mode === "timeAttack" ? TXT.alarm + " 時間設定" : TXT.memo + " 題數設定"}</h3>
         <div className="btn-group">
           {(mode === "timeAttack" ? TIME_OPTIONS : SPRINT_OPTIONS).map((v) => (
             <button
@@ -242,14 +268,14 @@ function SetupScreen({ onStart }) {
               className={`btn btn-cute ${modeValue === v ? "btn-active" : ""}`}
               onClick={() => setModeValue(v)}
             >
-              {mode === "timeAttack" ? `${v} \u5206\u9418` : `${v} \u984C`}
+              {mode === "timeAttack" ? v + " 分鐘" : v + " 題"}
             </button>
           ))}
         </div>
       </div>
 
       <button className="btn btn-start" onClick={handleStart}>
-        \uD83D\uDE80 \u51FA\u767C\uFF01
+        {TXT.rocket} 出發！
       </button>
     </div>
   );
@@ -295,6 +321,7 @@ function PracticeScreen({ session }) {
 
   const { config, timer } = session;
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
+  const modeEmoji = config.mode === "timeAttack" ? TXT.alarm : TXT.runner;
 
   return (
     <div className={`practice-screen ${session.feedback?.type === "correct" ? "flash-correct" : ""} ${session.feedback?.type === "wrong" ? "flash-wrong" : ""}`}>
@@ -302,14 +329,14 @@ function PracticeScreen({ session }) {
         <div className="practice-info">
           <span className="badge badge-op">{OPERATION_LABELS[config.operation].icon} {OPERATION_LABELS[config.operation].label}</span>
           <span className="badge badge-level">{levelIcon.emoji} Lv.{config.level}</span>
-          <span className="badge badge-mode">{config.mode === "timeAttack" ? "\u23F0" : "\uD83C\uDFC3"} {MODE_LABELS[config.mode]}</span>
+          <span className="badge badge-mode">{modeEmoji} {MODE_LABELS[config.mode]}</span>
         </div>
         <div className="practice-stats">
           <span className="timer">{timer.displayTime}</span>
           <span className="counter">
             {config.mode === "sprint"
-              ? `${session.totalAnswered} / ${config.value}`
-              : `\u7B2C ${session.questionIndex} \u984C`}
+              ? session.totalAnswered + " / " + config.value
+              : "第 " + session.questionIndex + " 題"}
           </span>
         </div>
         {config.mode === "timeAttack" && (
@@ -326,12 +353,12 @@ function PracticeScreen({ session }) {
         </div>
 
         {session.feedback?.type === "correct" && (
-          <div className="correct-feedback">\uD83C\uDF89 \u7B54\u5C0D\u4E86\uFF01</div>
+          <div className="correct-feedback">{TXT.party} 答對了！</div>
         )}
 
         {session.feedback?.type === "wrong" && (
           <div className="wrong-answer-hint">
-            \u274C \u6B63\u78BA\u7B54\u6848\u662F {session.feedback.correctAnswer}
+            {TXT.cross} 正確答案是 {session.feedback.correctAnswer}
           </div>
         )}
 
@@ -344,7 +371,7 @@ function PracticeScreen({ session }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             className="answer-input"
-            placeholder="\u2753"
+            placeholder={TXT.question}
             autoComplete="off"
             disabled={!!session.feedback}
           />
@@ -356,9 +383,9 @@ function PracticeScreen({ session }) {
 
       <div className="practice-footer">
         <div className="score-bar">
-          <span>\u2705 {session.correctCount}</span>
-          <span>\u2796</span>
-          <span>\u274C {session.totalAnswered - session.correctCount}</span>
+          <span>{TXT.check} {session.correctCount}</span>
+          <span>{TXT.dash}</span>
+          <span>{TXT.cross} {session.totalAnswered - session.correctCount}</span>
         </div>
       </div>
     </div>
@@ -382,10 +409,10 @@ function ResultScreen({ session }) {
       comparison = {
         improved: diff > 0,
         text: diff > 0
-          ? `\u6BD4\u4E0A\u6B21\u6700\u4F73\u591A\u7B54\u5C0D ${diff} \u984C\uFF01`
+          ? "比上次最佳多答對 " + diff + " 題！"
           : diff < 0
-            ? `\u8DDD\u6700\u4F73\u7D00\u9304\u5DEE ${Math.abs(diff)} \u984C\uFF0C\u4E0B\u6B21\u52A0\u6CB9\uFF01`
-            : "\u8FFD\u5E73\u6700\u4F73\u7D00\u9304\uFF01\u518D\u52A0\u628A\u52C1\uFF01",
+            ? "距最佳紀錄差 " + Math.abs(diff) + " 題，下次加油！"
+            : "追平最佳紀錄！再加把勁！",
       };
     } else {
       const diff = pb.totalSeconds - r.totalSeconds;
@@ -393,14 +420,13 @@ function ResultScreen({ session }) {
       comparison = {
         improved: diff > 0,
         text: diff > 0
-          ? `\u6BD4\u4E0A\u6B21\u6700\u4F73\u5FEB ${diff} \u79D2\uFF01`
+          ? "比上次最佳快 " + diff + " 秒！"
           : diff < 0
-            ? `\u6BD4\u6700\u4F73\u7D00\u9304\u6162 ${Math.abs(diff)} \u79D2\uFF0C\u4E0B\u6B21\u52A0\u6CB9\uFF01`
-            : "\u8FFD\u5E73\u6700\u4F73\u7D00\u9304\uFF01\u518D\u52A0\u628A\u52C1\uFF01",
+            ? "比最佳紀錄慢 " + Math.abs(diff) + " 秒，下次加油！"
+            : "追平最佳紀錄！再加把勁！",
       };
     }
   } else if (!pb || (pb && pb.timestamp === r.timestamp)) {
-    // 第一次玩或剛存進去就是自己
     isNewRecord = false;
   }
 
@@ -412,8 +438,6 @@ function ResultScreen({ session }) {
 
   const encouragement = getEncouragement(r.accuracy);
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
-
-  // 根據正確率給星星數
   const starCount = r.accuracy === 100 ? 3 : r.accuracy >= 80 ? 2 : r.accuracy >= 50 ? 1 : 0;
 
   return (
@@ -422,9 +446,9 @@ function ResultScreen({ session }) {
 
       {isNewRecord && (
         <div className="new-record-banner">
-          <span className="trophy">\uD83C\uDFC6</span>
-          <span>\u7A81\u7834\u7D00\u9304\uFF01\u65B0\u7D00\u9304\u8A95\u751F\uFF01</span>
-          <span className="trophy">\uD83C\uDFC6</span>
+          <span className="trophy">{TXT.trophy}</span>
+          <span>突破紀錄！新紀錄誕生！</span>
+          <span className="trophy">{TXT.trophy}</span>
         </div>
       )}
 
@@ -434,7 +458,7 @@ function ResultScreen({ session }) {
         <div className="star-rating">
           {[...Array(3)].map((_, i) => (
             <span key={i} className={`rating-star ${i < starCount ? "filled" : ""}`}>
-              {i < starCount ? "\u2B50" : "\u2606"}
+              {i < starCount ? TXT.filledStar : TXT.emptyStar}
             </span>
           ))}
         </div>
@@ -442,48 +466,48 @@ function ResultScreen({ session }) {
 
       <div className="result-grid">
         <div className="result-item">
-          <span className="result-icon">\uD83D\uDCDD</span>
-          <span className="result-label">\u7B54\u984C\u6578</span>
+          <span className="result-icon">{TXT.memo}</span>
+          <span className="result-label">答題數</span>
           <span className="result-value">{r.totalQuestions}</span>
         </div>
         <div className="result-item">
-          <span className="result-icon">\u2705</span>
-          <span className="result-label">\u7B54\u5C0D</span>
+          <span className="result-icon">{TXT.check}</span>
+          <span className="result-label">答對</span>
           <span className="result-value">{r.correctCount}</span>
         </div>
         <div className="result-item">
-          <span className="result-icon">\uD83C\uDFAF</span>
-          <span className="result-label">\u6B63\u78BA\u7387</span>
+          <span className="result-icon">{TXT.bullseye}</span>
+          <span className="result-label">正確率</span>
           <span className="result-value result-accuracy">{r.accuracy}%</span>
         </div>
         <div className="result-item">
-          <span className="result-icon">\u26A1</span>
-          <span className="result-label">\u5E73\u5747\u901F\u5EA6</span>
+          <span className="result-icon">{TXT.bolt}</span>
+          <span className="result-label">平均速度</span>
           <span className="result-value">{(r.avgTimeMs / 1000).toFixed(1)}s</span>
         </div>
         {r.mode === "sprint" && (
           <div className="result-item">
-            <span className="result-icon">\u23F1\uFE0F</span>
-            <span className="result-label">\u7E3D\u8017\u6642</span>
+            <span className="result-icon">{TXT.timer}</span>
+            <span className="result-label">總耗時</span>
             <span className="result-value">{r.totalSeconds}s</span>
           </div>
         )}
         <div className="result-item">
-          <span className="result-icon">\uD83D\uDE80</span>
-          <span className="result-label">\u6700\u5FEB\u55AE\u984C</span>
+          <span className="result-icon">{TXT.rocket}</span>
+          <span className="result-label">最快單題</span>
           <span className="result-value">{(r.fastestMs / 1000).toFixed(1)}s</span>
         </div>
       </div>
 
       {comparison && (
         <div className={`comparison ${comparison.improved ? "improved" : "declined"}`}>
-          {comparison.improved ? "\uD83D\uDD25 " : "\uD83D\uDCAA "}{comparison.text}
+          {comparison.improved ? TXT.fire + " " : TXT.muscle + " "}{comparison.text}
         </div>
       )}
 
       <div className="result-actions">
         <button className="btn btn-start" onClick={session.resetSession}>
-          \uD83D\uDD01 \u518D\u4F86\u4E00\u6B21\uFF01
+          {TXT.refresh} 再來一次！
         </button>
       </div>
     </div>

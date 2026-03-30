@@ -46,7 +46,7 @@ const QuestionGenerator = (() => {
         3: {
           name: "小獅子",
           description: "20 以內加法，涉及進位",
-          hint: "個位數加在一起會 \u300e衝破 10\u300f，要小心進位喔！",
+          hint: "個位數加在一起會『衝破 10』，要小心進位喔！",
           generate() {
             let a, b;
             do {
