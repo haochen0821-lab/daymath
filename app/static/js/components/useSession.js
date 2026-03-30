@@ -138,8 +138,9 @@ function useSession(profileId) {
       : timer.elapsedSeconds;
     timer.pause();
     const result = buildResult(answers, correctCount, config, totalSecs);
+    result.incomplete = true; // 標記為未完成，不列入排行榜
     setSessionResult(result);
-    if (answers.length > 0) saveToServer(result);
+    // 未完成的不儲存到伺服器
   }, [config, timer, answers, correctCount, profileId]);
 
   const resetSession = useCallback(() => {

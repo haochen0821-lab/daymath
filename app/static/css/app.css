@@ -434,7 +434,7 @@ body {
   background: var(--primary-dark);
 }
 
-.numpad-minus {
+.numpad-del {
   font-size: 20px;
   color: var(--text-light);
 }
@@ -641,6 +641,18 @@ body {
   background: #FFF8E1;
   color: #F57F17;
   border: 2px solid #FFD93D;
+}
+
+.incomplete-banner {
+  background: #FFF3E0;
+  color: #E65100;
+  border: 2px solid #FFB74D;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 16px;
 }
 
 .result-actions {

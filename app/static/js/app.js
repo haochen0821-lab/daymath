@@ -89,16 +89,15 @@ function NumPad({ value, onChange, onSubmit, disabled }) {
     if (disabled) return;
     if (k === "del") { onChange(value.slice(0, -1)); }
     else if (k === "go") { if (value.trim()) onSubmit(); }
-    else if (k === "-") { if (value === "") onChange("-"); }
     else { onChange(value + k); }
   };
-  const keys = ["1","2","3","4","5","6","7","8","9","-","0","go"];
+  const keys = ["1","2","3","4","5","6","7","8","9","del","0","go"];
   return (
     <div className="numpad">
       {keys.map((k) => (
-        <button key={k} className={"numpad-key" + (k === "go" ? " numpad-go" : "") + (k === "-" ? " numpad-minus" : "")}
+        <button key={k} className={"numpad-key" + (k === "go" ? " numpad-go" : "") + (k === "del" ? " numpad-del" : "")}
           onClick={() => handleKey(k)} disabled={disabled} type="button">
-          {k === "go" ? "OK" : k === "-" ? "\u232B" : k}
+          {k === "go" ? "OK" : k === "del" ? "\u232B" : k}
         </button>
       ))}
     </div>
@@ -364,13 +363,13 @@ function ResultScreen({ session, profile }) {
   const [leaderboard, setLeaderboard] = React.useState([]);
   const [pb, setPb] = React.useState(null);
 
+  const isIncomplete = !!r.incomplete;
+
   React.useEffect(() => {
-    if (!profile) return;
-    // Load leaderboard
+    if (!profile || isIncomplete) return;
+    // 只有完成的才載入排行榜和個人最佳比較
     API.leaderboard(config.operation, config.level, config.mode).then(setLeaderboard).catch(() => {});
-    // Load personal history to find PB (excluding current)
     API.history(profile.id, config.operation, config.level, config.mode).then((rows) => {
-      // rows sorted by timestamp DESC, find best excluding this session
       const past = rows.filter((h) => h.timestamp !== r.timestamp);
       if (past.length === 0) { setPb(null); return; }
       if (config.mode === "timeAttack") {
@@ -402,17 +401,20 @@ function ResultScreen({ session, profile }) {
   }
 
   React.useEffect(() => {
-    if (isNewRecord || r.accuracy === 100) setShowConfetti(true);
+    if (!isIncomplete && (isNewRecord || r.accuracy === 100)) setShowConfetti(true);
   }, [isNewRecord, r.accuracy, pb]);
 
-  const encouragement = getEncouragement(r.accuracy);
+  const encouragement = isIncomplete ? "挑戰中途結束，成績不列入排行" : getEncouragement(r.accuracy);
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
-  const starCount = r.accuracy === 100 ? 3 : r.accuracy >= 80 ? 2 : r.accuracy >= 50 ? 1 : 0;
+  const starCount = isIncomplete ? 0 : (r.accuracy === 100 ? 3 : r.accuracy >= 80 ? 2 : r.accuracy >= 50 ? 1 : 0);
 
   return (
     <div className="result-screen">
       <Confetti active={showConfetti} />
-      {isNewRecord && (
+      {isIncomplete && (
+        <div className="incomplete-banner">未完成挑戰，本次成績僅供參考，不列入排行榜</div>
+      )}
+      {!isIncomplete && isNewRecord && (
         <div className="new-record-banner">
           <span className="trophy">{TXT.trophy}</span><span>突破紀錄！新紀錄誕生！</span><span className="trophy">{TXT.trophy}</span>
         </div>
@@ -436,12 +438,12 @@ function ResultScreen({ session, profile }) {
         {r.mode==="sprint"&&<div className="result-item"><span className="result-icon">{TXT.timer}</span><span className="result-label">總耗時</span><span className="result-value">{r.totalSeconds}s</span></div>}
         <div className="result-item"><span className="result-icon">{TXT.rocket}</span><span className="result-label">最快單題</span><span className="result-value">{(r.fastestMs/1000).toFixed(1)}s</span></div>
       </div>
-      {comparison && (
+      {!isIncomplete && comparison && (
         <div className={"comparison "+(comparison.improved?"improved":"declined")}>
           {comparison.improved?TXT.fire+" ":TXT.muscle+" "}{comparison.text}
         </div>
       )}
-      {leaderboard.length > 1 && (
+      {!isIncomplete && leaderboard.length > 1 && (
         <div className="leaderboard-card">
           <h3>{TXT.trophy} 排行榜（最佳紀錄）</h3>
           <div className="leaderboard-list">
