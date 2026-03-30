@@ -21,8 +21,9 @@ const QuestionGenerator = (() => {
       symbol: "+",
       levels: {
         1: {
-          name: "基礎",
+          name: "小兔子",
           description: "10 以內個位數相加",
+          hint: "數字寶寶們手牽手，加起來不超過 10 喔！",
           generate() {
             const a = rand(1, 9);
             const b = rand(1, 9 - a); // 確保和 <= 9，不進位
@@ -30,8 +31,9 @@ const QuestionGenerator = (() => {
           },
         },
         2: {
-          name: "進階基礎",
+          name: "小鹿",
           description: "20 以內加法，不進位",
+          hint: "個位數乖乖的，加在一起不會超過 9！",
           generate() {
             let a, b;
             do {
@@ -42,8 +44,9 @@ const QuestionGenerator = (() => {
           },
         },
         3: {
-          name: "進階挑戰",
+          name: "小獅子",
           description: "20 以內加法，涉及進位",
+          hint: "個位數加在一起會 \u300e衝破 10\u300f，要小心進位喔！",
           generate() {
             let a, b;
             do {
@@ -54,8 +57,9 @@ const QuestionGenerator = (() => {
           },
         },
         4: {
-          name: "高手",
+          name: "小龍",
           description: "兩位數加法",
+          hint: "兩個大數字的對決！你是心算小高手！",
           generate() {
             const a = rand(10, 99);
             const b = rand(10, 99);
@@ -69,8 +73,9 @@ const QuestionGenerator = (() => {
       symbol: "−",
       levels: {
         1: {
-          name: "基礎",
+          name: "小兔子",
           description: "10 以內減法",
+          hint: "小數字慢慢減，答案一定是正數喔！",
           generate() {
             const a = rand(2, 10);
             const b = rand(1, a - 1);
@@ -78,8 +83,9 @@ const QuestionGenerator = (() => {
           },
         },
         2: {
-          name: "進階基礎",
+          name: "小鹿",
           description: "20 以內減法，不借位",
+          hint: "個位數夠減，不用跟十位數借！",
           generate() {
             let a, b;
             do {
@@ -90,8 +96,9 @@ const QuestionGenerator = (() => {
           },
         },
         3: {
-          name: "進階挑戰",
+          name: "小獅子",
           description: "20 以內減法，涉及借位",
+          hint: "個位數不夠減，要跟十位數『借 10』來幫忙！",
           generate() {
             let a, b;
             do {
@@ -102,8 +109,9 @@ const QuestionGenerator = (() => {
           },
         },
         4: {
-          name: "高手",
+          name: "小龍",
           description: "兩位數減法",
+          hint: "兩位數大對決！穩穩算，你做得到！",
           generate() {
             const a = rand(20, 99);
             const b = rand(10, a - 1);
@@ -117,8 +125,9 @@ const QuestionGenerator = (() => {
       symbol: "×",
       levels: {
         1: {
-          name: "基礎",
+          name: "小兔子",
           description: "2, 5, 10 的乘法倍數",
+          hint: "2、5、10 是最好的朋友，先從它們開始！",
           generate() {
             const multipliers = [2, 5, 10];
             const a = multipliers[rand(0, 2)];
@@ -127,8 +136,9 @@ const QuestionGenerator = (() => {
           },
         },
         2: {
-          name: "標準",
+          name: "小鹿",
           description: "九九乘法表",
+          hint: "背熟九九乘法表，你就是乘法小達人！",
           generate() {
             const a = rand(1, 9);
             const b = rand(1, 9);
@@ -136,8 +146,9 @@ const QuestionGenerator = (() => {
           },
         },
         3: {
-          name: "挑戰",
+          name: "小獅子",
           description: "雙位數乘以個位數",
+          hint: "大數字乘小數字，拆開來算更簡單！",
           generate() {
             const a = rand(11, 99);
             const b = rand(2, 9);
@@ -151,8 +162,9 @@ const QuestionGenerator = (() => {
       symbol: "÷",
       levels: {
         1: {
-          name: "基礎",
+          name: "小兔子",
           description: "被除數 20 以內，可整除",
+          hint: "把東西平均分給大家，剛好分完不會剩！",
           generate() {
             const b = rand(2, 10);
             const answer = rand(1, Math.floor(20 / b));
@@ -161,8 +173,9 @@ const QuestionGenerator = (() => {
           },
         },
         2: {
-          name: "標準",
+          name: "小鹿",
           description: "被除數 100 以內，九九乘法逆運算",
+          hint: "想想九九乘法反過來，答案就出來了！",
           generate() {
             const b = rand(2, 9);
             const answer = rand(2, 9);
@@ -210,6 +223,7 @@ const QuestionGenerator = (() => {
         result[key].levels[lvl] = {
           name: def.name,
           description: def.description,
+          hint: def.hint,
         };
       }
     }
