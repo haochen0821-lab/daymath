@@ -112,17 +112,38 @@ def save_history():
     conn.execute("""
         INSERT INTO history
         (profile_id, operation, level, mode, mode_value, total_questions,
-         correct_count, accuracy, total_seconds, avg_time_ms, fastest_ms, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         correct_count, accuracy, total_seconds, avg_time_ms, fastest_ms,
+         timestamp, practice_time_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         d["profile_id"], d["operation"], d["level"], d["mode"],
         d["mode_value"], d["total_questions"], d["correct_count"],
         d["accuracy"], d["total_seconds"], d["avg_time_ms"],
-        d["fastest_ms"], d["timestamp"],
+        d["fastest_ms"], d["timestamp"], d.get("practice_time_ms", 0),
     ))
     conn.commit()
     conn.close()
     return jsonify({"ok": True}), 201
+
+
+@api.route("/practice-time", methods=["GET"])
+def practice_time():
+    """Return daily practice time per profile. Grouped by date (YYYY-MM-DD)."""
+    ts_from = request.args.get("from", "0")
+    ts_to = request.args.get("to", str(int(time.time() * 1000 + 86400000)))
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT p.id as profile_id, p.name, p.avatar,
+               date(timestamp / 1000, 'unixepoch', 'localtime') as day,
+               SUM(practice_time_ms) as total_ms,
+               COUNT(*) as sessions
+        FROM history h JOIN profiles p ON h.profile_id = p.id
+        WHERE h.timestamp >= ? AND h.timestamp <= ?
+        GROUP BY p.id, day
+        ORDER BY day DESC
+    """, (int(ts_from), int(ts_to))).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
 
 
 # ──────────── Leaderboard ────────────

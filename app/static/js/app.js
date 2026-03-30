@@ -65,6 +65,7 @@ const API = {
   history: (pid,params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/history/"+pid+"?"+q).then(r=>r.json()); },
   rankings: () => fetch("/api/rankings").then(r=>r.json()),
   personalBests: (pid) => fetch("/api/personal-bests/"+pid).then(r=>r.json()),
+  practiceTime: (params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/practice-time?"+q).then(r=>r.json()); },
 };
 
 // ─── Confetti ───
@@ -624,25 +625,53 @@ function BestsTab({ profile }) {
 }
 
 // ─── 歷史紀錄 Tab ───
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + " 秒";
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return m + " 分 " + (rs > 0 ? rs + " 秒" : "");
+}
+
 function HistoryTab({ profile }) {
   const [records, setRecords] = React.useState(null);
-  const [range, setRange] = React.useState("7"); // 7, 30, all
+  const [ptData, setPtData] = React.useState(null);
+  const [range, setRange] = React.useState("7");
   const [filterOp, setFilterOp] = React.useState("");
+
+  const rangeFrom = range !== "all" ? Date.now() - parseInt(range) * 86400000 : undefined;
 
   React.useEffect(() => {
     if(!profile) return;
     const params = {};
     if(filterOp) params.operation = filterOp;
-    if(range !== "all") {
-      const now = Date.now();
-      params.from = now - parseInt(range) * 86400000;
-    }
+    if(rangeFrom) params.from = rangeFrom;
     API.history(profile.id, params).then(setRecords).catch(()=>setRecords([]));
+    // 載入所有角色的練習時間
+    const ptParams = {};
+    if(rangeFrom) ptParams.from = rangeFrom;
+    API.practiceTime(ptParams).then(setPtData).catch(()=>setPtData([]));
   }, [profile, range, filterOp]);
 
   if(!records) return <p className="profile-empty">載入中...</p>;
 
-  // Group by date for chart
+  // ── 練習時間圖表（所有角色） ──
+  const ptByDay = {};
+  if (ptData) {
+    ptData.forEach(r => {
+      if (!ptByDay[r.day]) ptByDay[r.day] = {};
+      if (!ptByDay[r.day][r.profile_id]) ptByDay[r.day][r.profile_id] = { name: r.name, avatar: r.avatar, ms: 0 };
+      ptByDay[r.day][r.profile_id].ms += r.total_ms;
+    });
+  }
+  const ptDays = Object.keys(ptByDay).sort().slice(-10);
+  const allProfiles = {};
+  if (ptData) ptData.forEach(r => { allProfiles[r.profile_id] = { name: r.name, avatar: r.avatar }; });
+  const profileIds = Object.keys(allProfiles);
+  const barColors = ["#6C63FF","#FF6B6B","#2ECC71","#FFD93D","#45B7D1","#DDA0DD","#FF8C00","#96CEB4"];
+  const ptMax = Math.max(1, ...ptDays.map(d => Math.max(...profileIds.map(pid => (ptByDay[d]?.[pid]?.ms || 0)))));
+
+  // ── 答題數圖表 ──
   const byDate = {};
   records.forEach(r => {
     const d = new Date(r.timestamp).toLocaleDateString("zh-TW",{month:"numeric",day:"numeric"});
@@ -650,7 +679,7 @@ function HistoryTab({ profile }) {
     byDate[d].count += r.total_questions;
     byDate[d].correct += r.correct_count;
   });
-  const dates = Object.keys(byDate).reverse().slice(-14); // last 14 days with data
+  const dates = Object.keys(byDate).reverse().slice(-14);
   const maxCount = Math.max(1, ...dates.map(d => byDate[d].count));
 
   return (
@@ -670,6 +699,58 @@ function HistoryTab({ profile }) {
           <option value="division">除法</option>
         </select>
       </div>
+
+      {ptDays.length > 0 && profileIds.length > 0 && (
+        <div className="rank-card">
+          <h3 style={{fontSize:"14px",fontWeight:700,marginBottom:"12px"}}>
+            {TXT.timer} 每日練習時間（所有角色）
+          </h3>
+          <div className="pt-chart">
+            {ptDays.map(day => {
+              const dayLabel = day.slice(5); // MM-DD
+              return (
+                <div key={day} className="pt-day-col">
+                  <div className="pt-bars">
+                    {profileIds.map((pid, pi) => {
+                      const ms = ptByDay[day]?.[pid]?.ms || 0;
+                      const h = Math.max(0, (ms / ptMax) * 100);
+                      const isMe = profile && pid === profile.id;
+                      return (
+                        <div key={pid} className={"pt-bar" + (isMe ? " pt-bar-me" : "")}
+                          style={{height: h + "%", background: barColors[pi % barColors.length]}}
+                          title={allProfiles[pid].name + ": " + fmtMs(ms)}>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className="chart-label">{dayLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="chart-legend" style={{flexWrap:"wrap"}}>
+            {profileIds.map((pid, pi) => (
+              <span key={pid} className="legend-item">
+                <span className="legend-box" style={{background: barColors[pi % barColors.length]}}></span>
+                {allProfiles[pid].avatar} {allProfiles[pid].name}
+              </span>
+            ))}
+          </div>
+          <div className="pt-today-summary">
+            {profileIds.map(pid => {
+              const today = new Date().toISOString().slice(0, 10);
+              const ms = ptByDay[today]?.[pid]?.ms || 0;
+              const isMe = profile && pid === profile.id;
+              return (
+                <div key={pid} className={"pt-summary-item" + (isMe ? " pt-summary-me" : "")}>
+                  <span>{allProfiles[pid].avatar} {allProfiles[pid].name}</span>
+                  <span className="pt-summary-time">今日：{ms > 0 ? fmtMs(ms) : "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {dates.length > 0 && (
         <div className="rank-card">
@@ -713,6 +794,7 @@ function HistoryTab({ profile }) {
             const dt=new Date(r.timestamp);
             const dateStr=dt.toLocaleDateString("zh-TW",{month:"numeric",day:"numeric"})+" "+dt.toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"});
             const isSprint=r.mode==="sprint";
+            const ptMs = r.practice_time_ms || 0;
             return (
               <div key={r.id||i} className="history-row">
                 <div className="history-row-top">
@@ -725,6 +807,7 @@ function HistoryTab({ profile }) {
                   <span>{TXT.check} {r.correct_count}/{r.total_questions}</span>
                   <span>{TXT.bullseye} {r.accuracy}%</span>
                   <span>{isSprint?TXT.timer+" "+r.total_seconds+"s":TXT.bolt+" "+r.correct_count+"題"}</span>
+                  {ptMs > 0 && <span>{TXT.timer} {fmtMs(ptMs)}</span>}
                 </div>
               </div>
             );

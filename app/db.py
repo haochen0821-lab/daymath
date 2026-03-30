@@ -35,8 +35,14 @@ def init_db():
             avg_time_ms INTEGER NOT NULL,
             fastest_ms INTEGER NOT NULL,
             timestamp INTEGER NOT NULL,
+            practice_time_ms INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
         );
     """)
+    # Migration: add practice_time_ms if missing
+    try:
+        conn.execute("SELECT practice_time_ms FROM history LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE history ADD COLUMN practice_time_ms INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()

@@ -1313,6 +1313,74 @@ body {
 .legend-total { background: #E8E6FF; }
 .legend-correct { background: var(--primary); }
 
+/* --- Practice Time Chart --- */
+.pt-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding: 8px 0;
+}
+
+.pt-day-col {
+  flex: 1;
+  min-width: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.pt-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+}
+
+.pt-bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+  transition: height 0.4s ease;
+  opacity: 0.7;
+}
+
+.pt-bar-me {
+  opacity: 1;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+}
+
+.pt-today-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #F0EEFF;
+}
+
+.pt-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #FAFAFE;
+}
+
+.pt-summary-me {
+  background: var(--primary-light);
+  font-weight: 600;
+}
+
+.pt-summary-time {
+  color: var(--primary);
+  font-weight: 700;
+}
+
 /* --- History List --- */
 .history-list {
   display: flex;

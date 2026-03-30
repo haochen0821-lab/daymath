@@ -90,16 +90,21 @@ function useSession(profileId) {
     }
   }, [timer.isFinished, config, sessionResult, finalizeTimeAttack]);
 
+  const MAX_QUESTION_MS = 120000; // 單題超過 2 分鐘不計入練習時間
+
   function buildResult(answerList, correct, cfg, totalSecs) {
     const total = answerList.length;
     const accuracy = total > 0 ? (correct / total) * 100 : 0;
     const avgTimeMs = total > 0 ? answerList.reduce((s, a) => s + a.timeMs, 0) / total : 0;
     const fastestMs = total > 0 ? Math.min(...answerList.map((a) => a.timeMs)) : 0;
+    // 練習時間：每題 min(實際作答時間, 2分鐘) 的總和
+    const practiceTimeMs = answerList.reduce((s, a) => s + Math.min(a.timeMs, MAX_QUESTION_MS), 0);
     return {
       operation: cfg.operation, level: cfg.level, mode: cfg.mode,
       modeValue: cfg.value, totalQuestions: total, correctCount: correct,
       accuracy: Math.round(accuracy * 10) / 10, totalSeconds: totalSecs,
-      avgTimeMs: Math.round(avgTimeMs), fastestMs, timestamp: Date.now(),
+      avgTimeMs: Math.round(avgTimeMs), fastestMs, practiceTimeMs,
+      timestamp: Date.now(),
     };
   }
 
@@ -121,6 +126,7 @@ function useSession(profileId) {
         avg_time_ms: result.avgTimeMs,
         fastest_ms: result.fastestMs,
         timestamp: result.timestamp,
+        practice_time_ms: result.practiceTimeMs || 0,
       }),
     }).catch(() => {});
   }
