@@ -5,20 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daymath - 心算耐力與速度訓練</title>
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <meta name="theme-color" content="#4A90D9">
+    <meta name="theme-color" content="#6C63FF">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-512.png') }}">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/questionGenerator.js') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/useTimer.js') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/useSession.js') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/questionGenerator.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/useTimer.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/useSession.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
 </body>
 </html>
