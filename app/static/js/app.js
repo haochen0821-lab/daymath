@@ -285,11 +285,27 @@ function PracticeScreen({ session, profile }) {
     if(session.feedback?.type==="correct"){setShowStar(true);const t=setTimeout(()=>setShowStar(false),600);return()=>clearTimeout(t)}
   },[session.feedback]);
 
+  const handleSubmitRef = React.useRef(null);
+
   const handleSubmit = () => {
     if (!input.trim() || session.feedback) return;
     session.submitAnswer(input.trim());
     setInput("");
   };
+  handleSubmitRef.current = handleSubmit;
+
+  // 實體鍵盤支援（電腦版可直接按鍵盤輸入）
+  React.useEffect(() => {
+    const onKeyDown = (e) => {
+      if (session.feedback || session.sessionResult) return;
+      if (e.key >= "0" && e.key <= "9") { setInput(prev => prev + e.key); }
+      else if (e.key === "-") { setInput(prev => prev === "" ? "-" : prev); }
+      else if (e.key === "Backspace") { e.preventDefault(); setInput(prev => prev.slice(0, -1)); }
+      else if (e.key === "Enter") { handleSubmitRef.current(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [session.feedback, session.sessionResult]);
 
   if (session.sessionResult) return <ResultScreen session={session} profile={profile} />;
 
