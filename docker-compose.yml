@@ -1,0 +1,15 @@
+services:
+  daymath:
+    build: .
+    container_name: daymath
+    restart: unless-stopped
+    ports:
+      - "5400:5400"
+    volumes:
+      - ./app:/app/app
+      - ./version.json:/app/version.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5400/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
