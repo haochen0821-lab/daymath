@@ -217,6 +217,21 @@ React.useEffect(() => {
     }
   }
 
+  // --- 中途放棄 ---
+  const quitSession = useCallback(() => {
+    if (!config) return;
+    // 先讀取時間再停止計時器
+    const totalSecs = config.mode === "timeAttack"
+      ? (config.value * 60) - timer.remainingSeconds
+      : timer.elapsedSeconds;
+    timer.pause();
+    const result = buildResult(answers, correctCount, config, totalSecs);
+    setSessionResult(result);
+    if (answers.length > 0) {
+      saveHistory(result);
+    }
+  }, [config, timer, answers, correctCount]);
+
   // --- 重置 ---
   const resetSession = useCallback(() => {
     timer.reset();
@@ -244,6 +259,7 @@ React.useEffect(() => {
     // 操作
     startSession,
     submitAnswer,
+    quitSession,
     resetSession,
     // 歷史
     getHistory,

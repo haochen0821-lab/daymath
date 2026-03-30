@@ -169,6 +169,8 @@ const TXT = {
   bullseye: "\uD83C\uDFAF",
   emptyStar: "\u2606",
   filledStar: "\u2B50",
+  flag: "\uD83C\uDFF3\uFE0F",
+  pencil: "\u270F\uFE0F",
 };
 
 // --- 設定畫面 ---
@@ -237,6 +239,9 @@ function SetupScreen({ onStart }) {
         {currentLevelInfo && (
           <div className="level-hint-box">
             <p className="level-hint">{currentLevelInfo.hint}</p>
+            {currentLevelInfo.example && (
+              <p className="level-example">{TXT.pencil} 例如：{currentLevelInfo.example}</p>
+            )}
           </div>
         )}
       </div>
@@ -387,6 +392,9 @@ function PracticeScreen({ session }) {
           <span>{TXT.dash}</span>
           <span>{TXT.cross} {session.totalAnswered - session.correctCount}</span>
         </div>
+        <button className="btn btn-quit" onClick={() => session.quitSession()}>
+          {TXT.flag} 結束挑戰
+        </button>
       </div>
     </div>
   );

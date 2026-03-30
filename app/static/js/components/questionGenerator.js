@@ -23,7 +23,8 @@ const QuestionGenerator = (() => {
         1: {
           name: "小兔子",
           description: "10 以內個位數相加",
-          hint: "數字寶寶們手牽手，加起來不超過 10 喔！",
+          hint: "像 3 + 5、2 + 4 這種，兩個小數字加起來，答案不超過 10",
+          example: "3 + 5 = 8",
           generate() {
             const a = rand(1, 9);
             const b = rand(1, 9 - a); // 確保和 <= 9，不進位
@@ -33,7 +34,8 @@ const QuestionGenerator = (() => {
         2: {
           name: "小鹿",
           description: "20 以內加法，不進位",
-          hint: "個位數乖乖的，加在一起不會超過 9！",
+          hint: "像 12 + 5、11 + 3 這種，個位數加起來不超過 9，不需要進位",
+          example: "12 + 5 = 17",
           generate() {
             let a, b;
             do {
@@ -45,8 +47,9 @@ const QuestionGenerator = (() => {
         },
         3: {
           name: "小獅子",
-          description: "20 以內加法，涉及進位",
-          hint: "個位數加在一起會『衝破 10』，要小心進位喔！",
+          description: "20 以內加法，需要進位",
+          hint: "像 8 + 7、6 + 9 這種，個位數加起來超過 10，要進位到十位數",
+          example: "8 + 7 = 15",
           generate() {
             let a, b;
             do {
@@ -59,7 +62,8 @@ const QuestionGenerator = (() => {
         4: {
           name: "小龍",
           description: "兩位數加法",
-          hint: "兩個大數字的對決！你是心算小高手！",
+          hint: "像 23 + 45、67 + 18 這種，兩個兩位數相加，可能需要進位",
+          example: "23 + 45 = 68",
           generate() {
             const a = rand(10, 99);
             const b = rand(10, 99);
@@ -70,12 +74,13 @@ const QuestionGenerator = (() => {
     },
 
     subtraction: {
-      symbol: "−",
+      symbol: "\u2212",
       levels: {
         1: {
           name: "小兔子",
           description: "10 以內減法",
-          hint: "小數字慢慢減，答案一定是正數喔！",
+          hint: "像 7 \u2212 3、9 \u2212 5 這種，10 以內的數字互減",
+          example: "7 \u2212 3 = 4",
           generate() {
             const a = rand(2, 10);
             const b = rand(1, a - 1);
@@ -85,7 +90,8 @@ const QuestionGenerator = (() => {
         2: {
           name: "小鹿",
           description: "20 以內減法，不借位",
-          hint: "個位數夠減，不用跟十位數借！",
+          hint: "像 18 \u2212 6、15 \u2212 3 這種，個位數夠減，不需要借位",
+          example: "18 \u2212 6 = 12",
           generate() {
             let a, b;
             do {
@@ -97,8 +103,9 @@ const QuestionGenerator = (() => {
         },
         3: {
           name: "小獅子",
-          description: "20 以內減法，涉及借位",
-          hint: "個位數不夠減，要跟十位數『借 10』來幫忙！",
+          description: "20 以內減法，需要借位",
+          hint: "像 15 \u2212 8、13 \u2212 7 這種，個位不夠減要跟十位借 1 變成 10",
+          example: "15 \u2212 8 = 7",
           generate() {
             let a, b;
             do {
@@ -111,7 +118,8 @@ const QuestionGenerator = (() => {
         4: {
           name: "小龍",
           description: "兩位數減法",
-          hint: "兩位數大對決！穩穩算，你做得到！",
+          hint: "像 73 \u2212 28、95 \u2212 47 這種，兩個兩位數互減，可能需要借位",
+          example: "73 \u2212 28 = 45",
           generate() {
             const a = rand(20, 99);
             const b = rand(10, a - 1);
@@ -126,8 +134,9 @@ const QuestionGenerator = (() => {
       levels: {
         1: {
           name: "小兔子",
-          description: "2, 5, 10 的乘法倍數",
-          hint: "2、5、10 是最好的朋友，先從它們開始！",
+          description: "2、5、10 的倍數",
+          hint: "只會出現 \u00D72、\u00D75、\u00D710，像 2\u00D73、5\u00D76、10\u00D74 這種最簡單的乘法",
+          example: "5 \u00D7 6 = 30",
           generate() {
             const multipliers = [2, 5, 10];
             const a = multipliers[rand(0, 2)];
@@ -138,7 +147,8 @@ const QuestionGenerator = (() => {
         2: {
           name: "小鹿",
           description: "九九乘法表",
-          hint: "背熟九九乘法表，你就是乘法小達人！",
+          hint: "1\u00D71 到 9\u00D79 的九九乘法，像 7\u00D78、4\u00D76 這種",
+          example: "7 \u00D7 8 = 56",
           generate() {
             const a = rand(1, 9);
             const b = rand(1, 9);
@@ -147,8 +157,9 @@ const QuestionGenerator = (() => {
         },
         3: {
           name: "小獅子",
-          description: "雙位數乘以個位數",
-          hint: "大數字乘小數字，拆開來算更簡單！",
+          description: "兩位數 \u00D7 一位數",
+          hint: "像 12\u00D74、35\u00D73 這種，可以拆成十位和個位分開乘再加起來",
+          example: "12 \u00D7 4 = 48",
           generate() {
             const a = rand(11, 99);
             const b = rand(2, 9);
@@ -163,8 +174,9 @@ const QuestionGenerator = (() => {
       levels: {
         1: {
           name: "小兔子",
-          description: "被除數 20 以內，可整除",
-          hint: "把東西平均分給大家，剛好分完不會剩！",
+          description: "20 以內的除法",
+          hint: "像 12\u00F73、20\u00F75 這種，答案都是整數，不會有餘數",
+          example: "12 \u00F7 3 = 4",
           generate() {
             const b = rand(2, 10);
             const answer = rand(1, Math.floor(20 / b));
@@ -174,8 +186,9 @@ const QuestionGenerator = (() => {
         },
         2: {
           name: "小鹿",
-          description: "被除數 100 以內，九九乘法逆運算",
-          hint: "想想九九乘法反過來，答案就出來了！",
+          description: "100 以內的除法",
+          hint: "像 56\u00F77、72\u00F78 這種，其實就是九九乘法反過來問",
+          example: "56 \u00F7 7 = 8",
           generate() {
             const b = rand(2, 9);
             const answer = rand(2, 9);
@@ -224,6 +237,7 @@ const QuestionGenerator = (() => {
           name: def.name,
           description: def.description,
           hint: def.hint,
+          example: def.example,
         };
       }
     }
