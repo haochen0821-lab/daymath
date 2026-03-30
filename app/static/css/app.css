@@ -1223,12 +1223,63 @@ body {
 /* --- History Filters --- */
 .history-filters {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-.history-select {
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-chip {
+  padding: 6px 14px;
+  border: 2px solid #E8E6FF;
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+
+.filter-chip-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input {
   flex: 1;
+  padding: 8px 10px;
+  border: 2px solid #E8E6FF;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+}
+
+.date-input:focus { border-color: var(--primary); }
+
+.date-sep {
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.history-select {
   padding: 8px 12px;
   border: 2px solid #E8E6FF;
   border-radius: var(--radius);

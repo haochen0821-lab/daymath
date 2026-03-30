@@ -633,25 +633,47 @@ function fmtMs(ms) {
   return m + " 分 " + (rs > 0 ? rs + " 秒" : "");
 }
 
+function toDateStr(d) { return d.toISOString().slice(0, 10); }
+function startOfDay(dateStr) { return new Date(dateStr + "T00:00:00").getTime(); }
+function endOfDay(dateStr) { return new Date(dateStr + "T23:59:59").getTime() + 999; }
+
 function HistoryTab({ profile }) {
   const [records, setRecords] = React.useState(null);
   const [ptData, setPtData] = React.useState(null);
-  const [range, setRange] = React.useState("7");
+  const [rangeType, setRangeType] = React.useState("today"); // today|7|30|90|custom|all
+  const [customFrom, setCustomFrom] = React.useState(toDateStr(new Date()));
+  const [customTo, setCustomTo] = React.useState(toDateStr(new Date()));
   const [filterOp, setFilterOp] = React.useState("");
 
-  const rangeFrom = range !== "all" ? Date.now() - parseInt(range) * 86400000 : undefined;
+  // 計算 from / to 時間戳
+  let tsFrom, tsTo;
+  const now = new Date();
+  if (rangeType === "today") {
+    tsFrom = startOfDay(toDateStr(now));
+    tsTo = endOfDay(toDateStr(now));
+  } else if (rangeType === "custom") {
+    tsFrom = startOfDay(customFrom);
+    tsTo = endOfDay(customTo);
+  } else if (rangeType === "all") {
+    tsFrom = undefined;
+    tsTo = undefined;
+  } else {
+    tsFrom = Date.now() - parseInt(rangeType) * 86400000;
+    tsTo = undefined;
+  }
 
   React.useEffect(() => {
     if(!profile) return;
     const params = {};
     if(filterOp) params.operation = filterOp;
-    if(rangeFrom) params.from = rangeFrom;
+    if(tsFrom) params.from = tsFrom;
+    if(tsTo) params.to = tsTo;
     API.history(profile.id, params).then(setRecords).catch(()=>setRecords([]));
-    // 載入所有角色的練習時間
     const ptParams = {};
-    if(rangeFrom) ptParams.from = rangeFrom;
+    if(tsFrom) ptParams.from = tsFrom;
+    if(tsTo) ptParams.to = tsTo;
     API.practiceTime(ptParams).then(setPtData).catch(()=>setPtData([]));
-  }, [profile, range, filterOp]);
+  }, [profile, rangeType, customFrom, customTo, filterOp]);
 
   if(!records) return <p className="profile-empty">載入中...</p>;
 
@@ -685,12 +707,21 @@ function HistoryTab({ profile }) {
   return (
     <div>
       <div className="history-filters">
-        <select className="history-select" value={range} onChange={e=>setRange(e.target.value)}>
-          <option value="7">最近 7 天</option>
-          <option value="30">最近 30 天</option>
-          <option value="90">最近 90 天</option>
-          <option value="all">全部</option>
-        </select>
+        <div className="filter-row">
+          {[["today","今日"],["7","7 天"],["30","30 天"],["90","90 天"],["custom","自訂"],["all","全部"]].map(([v,label])=>(
+            <button key={v} className={"filter-chip"+(rangeType===v?" filter-chip-active":"")}
+              onClick={()=>setRangeType(v)}>{label}</button>
+          ))}
+        </div>
+        {rangeType === "custom" && (
+          <div className="filter-dates">
+            <input type="date" className="date-input" value={customFrom}
+              onChange={e=>setCustomFrom(e.target.value)} max={customTo} />
+            <span className="date-sep">~</span>
+            <input type="date" className="date-input" value={customTo}
+              onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={toDateStr(new Date())} />
+          </div>
+        )}
         <select className="history-select" value={filterOp} onChange={e=>setFilterOp(e.target.value)}>
           <option value="">全部運算</option>
           <option value="addition">加法</option>
