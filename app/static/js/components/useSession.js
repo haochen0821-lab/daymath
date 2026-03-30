@@ -207,6 +207,46 @@ function useSession(profileId) {
     }
   }
 
+  // --- 取得所有角色在同一關卡的最佳成績（用於排行比較） ---
+  function getAllProfilesBest(operation, level, mode) {
+    try {
+      const profiles = JSON.parse(localStorage.getItem("daymath_profiles") || "[]");
+      const results = [];
+      for (const p of profiles) {
+        const key = "daymath_history_" + p.id;
+        const history = JSON.parse(localStorage.getItem(key) || "[]");
+        const filtered = history.filter(
+          (h) => h.operation === operation && h.level === level && h.mode === mode
+        );
+        if (filtered.length === 0) continue;
+        let best;
+        if (mode === "timeAttack") {
+          best = filtered.reduce((b, r) => r.correctCount > b.correctCount ? r : b);
+        } else {
+          best = filtered.reduce((b, r) => r.totalSeconds < b.totalSeconds ? r : b);
+        }
+        results.push({
+          profileId: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          correctCount: best.correctCount,
+          accuracy: best.accuracy,
+          totalSeconds: best.totalSeconds,
+          avgTimeMs: best.avgTimeMs,
+        });
+      }
+      // 排序：timeAttack 按答對數降序，sprint 按秒數升序
+      if (mode === "timeAttack") {
+        results.sort((a, b) => b.correctCount - a.correctCount);
+      } else {
+        results.sort((a, b) => a.totalSeconds - b.totalSeconds);
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
   // --- 中途放棄 ---
   const quitSession = useCallback(() => {
     if (!config) return;
@@ -248,5 +288,6 @@ function useSession(profileId) {
     resetSession,
     getHistory,
     getPersonalBest,
+    getAllProfilesBest,
   };
 }

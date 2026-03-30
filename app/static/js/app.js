@@ -472,7 +472,7 @@ function SetupScreen({ onStart, profile, onSwitchProfile }) {
 }
 
 // --- 練習畫面 ---
-function PracticeScreen({ session }) {
+function PracticeScreen({ session, profile }) {
   const [input, setInput] = React.useState("");
   const [showStar, setShowStar] = React.useState(false);
   const inputRef = React.useRef(null);
@@ -506,7 +506,7 @@ function PracticeScreen({ session }) {
   };
 
   if (session.sessionResult) {
-    return <ResultScreen session={session} />;
+    return <ResultScreen session={session} profile={profile} />;
   }
 
   const { config, timer } = session;
@@ -524,9 +524,8 @@ function PracticeScreen({ session }) {
         <div className="practice-stats">
           <span className="timer">{timer.displayTime}</span>
           <span className="counter">
-            {config.mode === "sprint"
-              ? session.totalAnswered + " / " + config.value
-              : "第 " + session.questionIndex + " 題"}
+            {"第 " + session.questionIndex + " 題"}
+            {config.mode === "sprint" && (" / " + config.value)}
           </span>
         </div>
         {config.mode === "timeAttack" && (
@@ -586,9 +585,10 @@ function PracticeScreen({ session }) {
 }
 
 // --- 獎勵成績畫面 ---
-function ResultScreen({ session }) {
+function ResultScreen({ session, profile }) {
   const { sessionResult: r, config } = session;
   const pb = session.getPersonalBest(config.operation, config.level, config.mode);
+  const leaderboard = session.getAllProfilesBest(config.operation, config.level, config.mode);
   const [showConfetti, setShowConfetti] = React.useState(false);
 
   // 比較歷史最佳
@@ -632,6 +632,9 @@ function ResultScreen({ session }) {
   const encouragement = getEncouragement(r.accuracy);
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
   const starCount = r.accuracy === 100 ? 3 : r.accuracy >= 80 ? 2 : r.accuracy >= 50 ? 1 : 0;
+
+  // 獎牌 emoji
+  const medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
 
   return (
     <div className="result-screen">
@@ -698,6 +701,31 @@ function ResultScreen({ session }) {
         </div>
       )}
 
+      {leaderboard.length > 1 && (
+        <div className="leaderboard-card">
+          <h3>{TXT.trophy} 排行榜（最佳紀錄）</h3>
+          <div className="leaderboard-list">
+            {leaderboard.map((entry, idx) => {
+              const isMe = profile && entry.profileId === profile.id;
+              const medal = idx < 3 ? medals[idx] : (idx + 1) + "";
+              return (
+                <div key={entry.profileId} className={"lb-row" + (isMe ? " lb-row-me" : "")}>
+                  <span className="lb-rank">{medal}</span>
+                  <span className="lb-avatar">{entry.avatar}</span>
+                  <span className="lb-name">{entry.name}{isMe ? "（你）" : ""}</span>
+                  <span className="lb-score">
+                    {config.mode === "timeAttack"
+                      ? entry.correctCount + " 題"
+                      : entry.totalSeconds + " 秒"}
+                  </span>
+                  <span className="lb-acc">{entry.accuracy}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="result-actions">
         <button className="btn btn-start" onClick={session.resetSession}>
           {TXT.refresh} 再來一次！
@@ -736,7 +764,7 @@ function App() {
     return <SetupScreen onStart={session.startSession} profile={profile} onSwitchProfile={handleSwitchProfile} />;
   }
 
-  return <PracticeScreen session={session} />;
+  return <PracticeScreen session={session} profile={profile} />;
 }
 
 // --- Mount ---

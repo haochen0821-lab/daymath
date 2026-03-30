@@ -857,3 +857,77 @@ body {
   color: var(--primary);
   background: var(--primary-light);
 }
+
+/* --- Leaderboard --- */
+.leaderboard-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.leaderboard-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  transition: background 0.15s;
+}
+
+.lb-row-me {
+  background: var(--primary-light);
+  font-weight: 700;
+}
+
+.lb-rank {
+  font-size: 20px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.lb-avatar {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.lb-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-score {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.lb-acc {
+  font-size: 12px;
+  color: var(--text-light);
+  flex-shrink: 0;
+  min-width: 38px;
+  text-align: right;
+}
