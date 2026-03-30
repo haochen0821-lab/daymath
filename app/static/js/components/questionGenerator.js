@@ -208,6 +208,9 @@ const QuestionGenerator = (() => {
    * @param {number} level - 難度等級
    * @returns {{ a: number, b: number, answer: number, symbol: string, display: string }}
    */
+  // 記住最近 2 題，避免重複
+  let recentQuestions = [];
+
   function generate(operation, level) {
     const op = OPERATIONS[operation];
     if (!op) throw new Error(`Unknown operation: ${operation}`);
@@ -215,9 +218,20 @@ const QuestionGenerator = (() => {
     const lvl = op.levels[level];
     if (!lvl) throw new Error(`Unknown level ${level} for ${operation}`);
 
-    const { a, b, answer } = lvl.generate();
-    const display = `${a} ${op.symbol} ${b}`;
+    let a, b, answer, attempts = 0;
+    do {
+      const q = lvl.generate();
+      a = q.a; b = q.b; answer = q.answer;
+      attempts++;
+    } while (
+      attempts < 20 &&
+      recentQuestions.some(r => r.a === a && r.b === b)
+    );
 
+    recentQuestions.push({ a, b });
+    if (recentQuestions.length > 2) recentQuestions.shift();
+
+    const display = `${a} ${op.symbol} ${b}`;
     return { a, b, answer, symbol: op.symbol, display, operation, level };
   }
 

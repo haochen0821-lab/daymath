@@ -149,6 +149,39 @@ def leaderboard():
     return jsonify([dict(r) for r in rows])
 
 
+# ──────────── Full Rankings (all combos) ────────────
+
+@api.route("/rankings", methods=["GET"])
+def rankings():
+    """Return every profile's personal best for every operation/level/mode combo."""
+    conn = get_db()
+
+    # Sprint: best = lowest total_seconds
+    sprint_rows = conn.execute("""
+        SELECT h.profile_id, p.name, p.avatar,
+               h.operation, h.level, h.mode, h.mode_value,
+               MIN(h.total_seconds) as best_seconds,
+               h.correct_count, h.accuracy, h.avg_time_ms
+        FROM history h JOIN profiles p ON h.profile_id = p.id
+        WHERE h.mode = 'sprint'
+        GROUP BY h.profile_id, h.operation, h.level, h.mode_value
+    """).fetchall()
+
+    # TimeAttack: best = highest correct_count
+    ta_rows = conn.execute("""
+        SELECT h.profile_id, p.name, p.avatar,
+               h.operation, h.level, h.mode, h.mode_value,
+               h.total_seconds as best_seconds,
+               MAX(h.correct_count) as correct_count, h.accuracy, h.avg_time_ms
+        FROM history h JOIN profiles p ON h.profile_id = p.id
+        WHERE h.mode = 'timeAttack'
+        GROUP BY h.profile_id, h.operation, h.level, h.mode_value
+    """).fetchall()
+
+    conn.close()
+    return jsonify([dict(r) for r in sprint_rows] + [dict(r) for r in ta_rows])
+
+
 # ──────────── Icon Upload ────────────
 
 @api.route("/icon", methods=["POST"])

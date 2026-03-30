@@ -19,7 +19,7 @@ const LEVEL_ICONS = {
 };
 
 const TIME_OPTIONS = [1, 3, 5];
-const SPRINT_OPTIONS = [20, 50, 100];
+const SPRINT_OPTIONS = [10, 20, 50, 100];
 
 const ENCOURAGE_MESSAGES = {
   perfect: ["全部答對！你是天才小數學家！","滿分！太厲害了吧！","完美表現！無人能擋！"],
@@ -63,6 +63,7 @@ const API = {
   deleteProfile: (id) => fetch("/api/profiles/"+id,{method:"DELETE"}),
   leaderboard: (op,lvl,mode) => fetch("/api/leaderboard?operation="+op+"&level="+lvl+"&mode="+mode).then(r=>r.json()),
   history: (pid,op,lvl,mode) => fetch("/api/history/"+pid+"?operation="+op+"&level="+lvl+"&mode="+mode).then(r=>r.json()),
+  rankings: () => fetch("/api/rankings").then(r=>r.json()),
 };
 
 // ─── Confetti ───
@@ -192,7 +193,7 @@ function ProfileScreen({ onSelect }) {
 }
 
 // ─── Setup Screen ───
-function SetupScreen({ onStart, profile, onSwitchProfile }) {
+function SetupScreen({ onStart, profile, onSwitchProfile, onRankings }) {
   const [operation, setOperation] = React.useState("addition");
   const [level, setLevel] = React.useState(1);
   const [mode, setMode] = React.useState("sprint"); // 預設定額衝刺
@@ -251,8 +252,8 @@ function SetupScreen({ onStart, profile, onSwitchProfile }) {
       <div className="setup-card">
         <h3>{TXT.timer} 選擇模式</h3>
         <div className="btn-group">
-          <button className={`btn btn-cute ${mode==="timeAttack"?"btn-active":""}`} onClick={()=>setMode("timeAttack")}>{TXT.alarm} 限時挑戰</button>
           <button className={`btn btn-cute ${mode==="sprint"?"btn-active":""}`} onClick={()=>setMode("sprint")}>{TXT.runner} 定額衝刺</button>
+          <button className={`btn btn-cute ${mode==="timeAttack"?"btn-active":""}`} onClick={()=>setMode("timeAttack")}>{TXT.alarm} 限時挑戰</button>
         </div>
       </div>
       <div className="setup-card">
@@ -267,6 +268,10 @@ function SetupScreen({ onStart, profile, onSwitchProfile }) {
       <button className="btn btn-start" onClick={()=>onStart(operation,level,mode,modeValue)}>
         {TXT.rocket} 出發！
       </button>
+      <button className="btn btn-rankings" onClick={onRankings}>
+        {TXT.trophy} 戰力排行
+      </button>
+      <a href="/admin" className="admin-link">{TXT.gear} 後台管理</a>
     </div>
   );
 }
@@ -447,18 +452,146 @@ function ResultScreen({ session, profile }) {
   );
 }
 
+// ─── Rankings Screen ───
+function RankingsScreen({ profile, onBack }) {
+  const [data, setData] = React.useState(null);
+  const [tab, setTab] = React.useState("sprint"); // sprint | timeAttack
+
+  React.useEffect(() => {
+    API.rankings().then(setData).catch(() => setData([]));
+  }, []);
+
+  if (!data) return <div className="rankings-screen"><p className="profile-empty">載入中...</p></div>;
+
+  const operations = QuestionGenerator.getOperations();
+
+  // Group data: { operation -> level -> mode_value -> [entries sorted] }
+  const grouped = {};
+  data.filter(d => d.mode === tab).forEach(d => {
+    const key = d.operation + "_" + d.level + "_" + d.mode_value;
+    if (!grouped[key]) grouped[key] = { operation: d.operation, level: d.level, mode_value: d.mode_value, entries: [] };
+    grouped[key].entries.push(d);
+  });
+
+  // Sort entries within each group
+  Object.values(grouped).forEach(g => {
+    if (tab === "sprint") {
+      g.entries.sort((a, b) => a.best_seconds - b.best_seconds);
+    } else {
+      g.entries.sort((a, b) => b.correct_count - a.correct_count);
+    }
+  });
+
+  // Sort groups by operation order then level
+  const opOrder = ["addition", "subtraction", "multiplication", "division"];
+  const sortedGroups = Object.values(grouped).sort((a, b) => {
+    const oi = opOrder.indexOf(a.operation) - opOrder.indexOf(b.operation);
+    if (oi !== 0) return oi;
+    if (a.level !== b.level) return a.level - b.level;
+    return a.mode_value - b.mode_value;
+  });
+
+  return (
+    <div className="rankings-screen">
+      <div className="app-header">
+        <h1 className="app-title">{TXT.trophy} 戰力排行</h1>
+      </div>
+      <div className="rank-tabs">
+        <button className={"rank-tab" + (tab === "sprint" ? " rank-tab-active" : "")} onClick={() => setTab("sprint")}>
+          {TXT.runner} 定額衝刺
+        </button>
+        <button className={"rank-tab" + (tab === "timeAttack" ? " rank-tab-active" : "")} onClick={() => setTab("timeAttack")}>
+          {TXT.alarm} 限時挑戰
+        </button>
+      </div>
+
+      {sortedGroups.length === 0 && (
+        <div className="setup-card"><p className="profile-empty">還沒有任何成績紀錄，快去挑戰吧！</p></div>
+      )}
+
+      {sortedGroups.map(g => {
+        const opInfo = OPERATION_LABELS[g.operation];
+        const lvlIcon = LEVEL_ICONS[g.level] || LEVEL_ICONS[1];
+        const best = g.entries[0];
+        const maxVal = tab === "sprint" ? (g.entries[g.entries.length - 1]?.best_seconds || 1) : (best?.correct_count || 1);
+
+        return (
+          <div key={g.operation + g.level + g.mode_value} className="rank-card">
+            <div className="rank-card-header">
+              <span className="rank-card-op">{opInfo.icon} {opInfo.label}</span>
+              <span className="rank-card-level">{lvlIcon.emoji} Lv.{g.level}</span>
+              <span className="rank-card-mode">{tab === "sprint" ? g.mode_value + " 題" : g.mode_value + " 分鐘"}</span>
+            </div>
+            <div className="rank-entries">
+              {g.entries.map((e, idx) => {
+                const isMe = profile && e.profile_id === profile.id;
+                const medal = idx < 3 ? medals[idx] : "";
+                // Bar width: sprint = inversely proportional (fastest=100%), timeAttack = proportional
+                let barPct;
+                if (tab === "sprint") {
+                  barPct = best.best_seconds > 0 ? Math.max(15, (best.best_seconds / e.best_seconds) * 100) : 100;
+                } else {
+                  barPct = maxVal > 0 ? Math.max(15, (e.correct_count / maxVal) * 100) : 100;
+                }
+                return (
+                  <div key={e.profile_id} className={"rank-entry" + (isMe ? " rank-entry-me" : "")}>
+                    <div className="rank-entry-info">
+                      <span className="rank-medal">{medal || (idx + 1)}</span>
+                      <span className="rank-avatar">{e.avatar}</span>
+                      <span className="rank-name">{e.name}</span>
+                    </div>
+                    <div className="rank-bar-wrap">
+                      <div className="rank-bar" style={{ width: barPct + "%" }}>
+                        <span className="rank-bar-label">
+                          {tab === "sprint"
+                            ? e.best_seconds + "s"
+                            : e.correct_count + " 題"
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    <span className="rank-acc">{e.accuracy}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <button className="btn btn-start" onClick={onBack} style={{marginTop: "16px"}}>
+        {TXT.refresh} 回到首頁
+      </button>
+    </div>
+  );
+}
+
 // ─── Main App ───
 function App() {
   const [profile, setProfile] = React.useState(null);
+  const [screen, setScreen] = React.useState("setup"); // setup | rankings
   const session = useSession(profile ? profile.id : null);
 
   const handleSwitchProfile = () => {
     session.resetSession();
+    setScreen("setup");
     setProfile(null);
   };
 
   if (!profile) return <ProfileScreen onSelect={setProfile} />;
-  if (!session.config) return <SetupScreen onStart={session.startSession} profile={profile} onSwitchProfile={handleSwitchProfile} />;
+
+  if (screen === "rankings") {
+    return <RankingsScreen profile={profile} onBack={() => setScreen("setup")} />;
+  }
+
+  if (!session.config) {
+    return <SetupScreen
+      onStart={session.startSession}
+      profile={profile}
+      onSwitchProfile={handleSwitchProfile}
+      onRankings={() => setScreen("rankings")}
+    />;
+  }
   return <PracticeScreen session={session} profile={profile} />;
 }
 
