@@ -61,9 +61,10 @@ const API = {
   profiles: () => fetch("/api/profiles").then(r=>r.json()),
   createProfile: (name,avatar) => fetch("/api/profiles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,avatar})}).then(r=>r.json()),
   deleteProfile: (id) => fetch("/api/profiles/"+id,{method:"DELETE"}),
-  leaderboard: (op,lvl,mode) => fetch("/api/leaderboard?operation="+op+"&level="+lvl+"&mode="+mode).then(r=>r.json()),
-  history: (pid,op,lvl,mode) => fetch("/api/history/"+pid+"?operation="+op+"&level="+lvl+"&mode="+mode).then(r=>r.json()),
+  leaderboard: (op,lvl,mode,mv) => fetch("/api/leaderboard?operation="+op+"&level="+lvl+"&mode="+mode+"&mode_value="+mv).then(r=>r.json()),
+  history: (pid,params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/history/"+pid+"?"+q).then(r=>r.json()); },
   rankings: () => fetch("/api/rankings").then(r=>r.json()),
+  personalBests: (pid) => fetch("/api/personal-bests/"+pid).then(r=>r.json()),
 };
 
 // ─── Confetti ───
@@ -368,8 +369,8 @@ function ResultScreen({ session, profile }) {
   React.useEffect(() => {
     if (!profile || isIncomplete) return;
     // 只有完成的才載入排行榜和個人最佳比較
-    API.leaderboard(config.operation, config.level, config.mode).then(setLeaderboard).catch(() => {});
-    API.history(profile.id, config.operation, config.level, config.mode).then((rows) => {
+    API.leaderboard(config.operation, config.level, config.mode, config.modeValue).then(setLeaderboard).catch(() => {});
+    API.history(profile.id, {operation:config.operation, level:config.level, mode:config.mode, mode_value:config.modeValue}).then((rows) => {
       const past = rows.filter((h) => h.timestamp !== r.timestamp);
       if (past.length === 0) { setPb(null); return; }
       if (config.mode === "timeAttack") {
@@ -472,100 +473,90 @@ function ResultScreen({ session, profile }) {
 
 // ─── Rankings Screen ───
 function RankingsScreen({ profile, onBack }) {
-  const [data, setData] = React.useState(null);
-  const [tab, setTab] = React.useState("sprint"); // sprint | timeAttack
-
-  React.useEffect(() => {
-    API.rankings().then(setData).catch(() => setData([]));
-  }, []);
-
-  if (!data) return <div className="rankings-screen"><p className="profile-empty">載入中...</p></div>;
-
-  const operations = QuestionGenerator.getOperations();
-
-  // Group data: { operation -> level -> mode_value -> [entries sorted] }
-  const grouped = {};
-  data.filter(d => d.mode === tab).forEach(d => {
-    const key = d.operation + "_" + d.level + "_" + d.mode_value;
-    if (!grouped[key]) grouped[key] = { operation: d.operation, level: d.level, mode_value: d.mode_value, entries: [] };
-    grouped[key].entries.push(d);
-  });
-
-  // Sort entries within each group
-  Object.values(grouped).forEach(g => {
-    if (tab === "sprint") {
-      g.entries.sort((a, b) => a.best_seconds - b.best_seconds);
-    } else {
-      g.entries.sort((a, b) => b.correct_count - a.correct_count);
-    }
-  });
-
-  // Sort groups by operation order then level
-  const opOrder = ["addition", "subtraction", "multiplication", "division"];
-  const sortedGroups = Object.values(grouped).sort((a, b) => {
-    const oi = opOrder.indexOf(a.operation) - opOrder.indexOf(b.operation);
-    if (oi !== 0) return oi;
-    if (a.level !== b.level) return a.level - b.level;
-    return a.mode_value - b.mode_value;
-  });
-
+  const [mainTab, setMainTab] = React.useState("rankings"); // rankings | history | bests
   return (
     <div className="rankings-screen">
       <div className="app-header">
-        <h1 className="app-title">{TXT.trophy} 戰力排行</h1>
+        <h1 className="app-title">{TXT.trophy} 戰力中心</h1>
       </div>
-      <div className="rank-tabs">
-        <button className={"rank-tab" + (tab === "sprint" ? " rank-tab-active" : "")} onClick={() => setTab("sprint")}>
-          {TXT.runner} 定額衝刺
+      <div className="rank-tabs rank-tabs-3">
+        <button className={"rank-tab"+(mainTab==="rankings"?" rank-tab-active":"")} onClick={()=>setMainTab("rankings")}>
+          {TXT.trophy} 排行榜
         </button>
-        <button className={"rank-tab" + (tab === "timeAttack" ? " rank-tab-active" : "")} onClick={() => setTab("timeAttack")}>
-          {TXT.alarm} 限時挑戰
+        <button className={"rank-tab"+(mainTab==="bests"?" rank-tab-active":"")} onClick={()=>setMainTab("bests")}>
+          {TXT.star} 最佳成績
+        </button>
+        <button className={"rank-tab"+(mainTab==="history"?" rank-tab-active":"")} onClick={()=>setMainTab("history")}>
+          {TXT.memo} 歷史紀錄
         </button>
       </div>
+      {mainTab === "rankings" && <RankingsTab profile={profile} />}
+      {mainTab === "bests" && <BestsTab profile={profile} />}
+      {mainTab === "history" && <HistoryTab profile={profile} />}
+      <button className="btn btn-start" onClick={onBack} style={{marginTop:"16px"}}>
+        {TXT.refresh} 回到首頁
+      </button>
+    </div>
+  );
+}
 
-      {sortedGroups.length === 0 && (
-        <div className="setup-card"><p className="profile-empty">還沒有任何成績紀錄，快去挑戰吧！</p></div>
-      )}
+// ─── 排行榜 Tab ───
+function RankingsTab({ profile }) {
+  const [data, setData] = React.useState(null);
+  const [modeTab, setModeTab] = React.useState("sprint");
+  React.useEffect(() => { API.rankings().then(setData).catch(()=>setData([])); }, []);
+  if (!data) return <p className="profile-empty">載入中...</p>;
 
-      {sortedGroups.map(g => {
-        const opInfo = OPERATION_LABELS[g.operation];
-        const lvlIcon = LEVEL_ICONS[g.level] || LEVEL_ICONS[1];
-        const best = g.entries[0];
-        const maxVal = tab === "sprint" ? (g.entries[g.entries.length - 1]?.best_seconds || 1) : (best?.correct_count || 1);
+  const grouped = {};
+  data.filter(d=>d.mode===modeTab).forEach(d => {
+    const key = d.operation+"_"+d.level+"_"+d.mode_value;
+    if(!grouped[key]) grouped[key]={operation:d.operation,level:d.level,mode_value:d.mode_value,entries:[]};
+    grouped[key].entries.push(d);
+  });
+  Object.values(grouped).forEach(g => {
+    if(modeTab==="sprint") g.entries.sort((a,b)=>a.best_seconds-b.best_seconds);
+    else g.entries.sort((a,b)=>b.correct_count-a.correct_count);
+  });
+  const opOrder=["addition","subtraction","multiplication","division"];
+  const sorted=Object.values(grouped).sort((a,b)=>{
+    const o=opOrder.indexOf(a.operation)-opOrder.indexOf(b.operation);
+    if(o!==0)return o; if(a.level!==b.level)return a.level-b.level; return a.mode_value-b.mode_value;
+  });
 
+  return (
+    <div>
+      <div className="rank-tabs sub-tabs">
+        <button className={"rank-tab"+(modeTab==="sprint"?" rank-tab-active":"")} onClick={()=>setModeTab("sprint")}>{TXT.runner} 定額衝刺</button>
+        <button className={"rank-tab"+(modeTab==="timeAttack"?" rank-tab-active":"")} onClick={()=>setModeTab("timeAttack")}>{TXT.alarm} 限時挑戰</button>
+      </div>
+      {sorted.length===0 && <div className="setup-card"><p className="profile-empty">還沒有成績，快去挑戰吧！</p></div>}
+      {sorted.map(g => {
+        const opInfo=OPERATION_LABELS[g.operation]; const lvlIcon=LEVEL_ICONS[g.level]||LEVEL_ICONS[1];
+        const best=g.entries[0]; const worst=g.entries[g.entries.length-1];
         return (
-          <div key={g.operation + g.level + g.mode_value} className="rank-card">
+          <div key={g.operation+g.level+g.mode_value} className="rank-card">
             <div className="rank-card-header">
               <span className="rank-card-op">{opInfo.icon} {opInfo.label}</span>
               <span className="rank-card-level">{lvlIcon.emoji} Lv.{g.level}</span>
-              <span className="rank-card-mode">{tab === "sprint" ? g.mode_value + " 題" : g.mode_value + " 分鐘"}</span>
+              <span className="rank-card-mode">{modeTab==="sprint"?g.mode_value+" 題":g.mode_value+" 分鐘"}</span>
             </div>
             <div className="rank-entries">
-              {g.entries.map((e, idx) => {
-                const isMe = profile && e.profile_id === profile.id;
-                const medal = idx < 3 ? medals[idx] : "";
-                // Bar width: sprint = inversely proportional (fastest=100%), timeAttack = proportional
+              {g.entries.map((e,idx)=>{
+                const isMe=profile&&e.profile_id===profile.id;
+                const medal=idx<3?medals[idx]:"";
                 let barPct;
-                if (tab === "sprint") {
-                  barPct = best.best_seconds > 0 ? Math.max(15, (best.best_seconds / e.best_seconds) * 100) : 100;
-                } else {
-                  barPct = maxVal > 0 ? Math.max(15, (e.correct_count / maxVal) * 100) : 100;
-                }
+                if(modeTab==="sprint") barPct=best.best_seconds>0?Math.max(15,(best.best_seconds/e.best_seconds)*100):100;
+                else barPct=best.correct_count>0?Math.max(15,(e.correct_count/best.correct_count)*100):100;
                 return (
-                  <div key={e.profile_id} className={"rank-entry" + (isMe ? " rank-entry-me" : "")}>
+                  <div key={e.profile_id} className={"rank-entry"+(isMe?" rank-entry-me":"")}>
                     <div className="rank-entry-info">
-                      <span className="rank-medal">{medal || (idx + 1)}</span>
+                      <span className="rank-medal">{medal||(idx+1)}</span>
                       <span className="rank-avatar">{e.avatar}</span>
                       <span className="rank-name">{e.name}</span>
                     </div>
                     <div className="rank-bar-wrap">
-                      <div className="rank-bar" style={{ width: barPct + "%" }}>
-                        <span className="rank-bar-label">
-                          {tab === "sprint"
-                            ? e.best_seconds + "s"
-                            : e.correct_count + " 題"
-                          }
-                        </span>
+                      <div className="rank-bar" style={{width:barPct+"%"}}>
+                        <span className="rank-bar-label">{modeTab==="sprint"?e.best_seconds+"s":e.correct_count+" 題"}</span>
                       </div>
                     </div>
                     <span className="rank-acc">{e.accuracy}%</span>
@@ -576,10 +567,170 @@ function RankingsScreen({ profile, onBack }) {
           </div>
         );
       })}
+    </div>
+  );
+}
 
-      <button className="btn btn-start" onClick={onBack} style={{marginTop: "16px"}}>
-        {TXT.refresh} 回到首頁
-      </button>
+// ─── 最佳成績 Tab ───
+function BestsTab({ profile }) {
+  const [bests, setBests] = React.useState(null);
+  React.useEffect(() => { if(profile) API.personalBests(profile.id).then(setBests).catch(()=>setBests([])); }, [profile]);
+  if(!bests) return <p className="profile-empty">載入中...</p>;
+  if(bests.length===0) return <div className="setup-card"><p className="profile-empty">還沒有任何成績</p></div>;
+
+  const opOrder=["addition","subtraction","multiplication","division"];
+  // Group by operation
+  const byOp={};
+  bests.forEach(b => {
+    if(!byOp[b.operation]) byOp[b.operation]=[];
+    byOp[b.operation].push(b);
+  });
+
+  return (
+    <div>
+      {opOrder.filter(op=>byOp[op]).map(op => {
+        const opInfo=OPERATION_LABELS[op];
+        const items=byOp[op].sort((a,b)=>a.level-b.level||(a.mode==="sprint"?-1:1)||a.mode_value-b.mode_value);
+        return (
+          <div key={op} className="rank-card">
+            <div className="rank-card-header">
+              <span className="rank-card-op">{opInfo.icon} {opInfo.label}</span>
+            </div>
+            <div className="bests-grid">
+              {items.map(b => {
+                const lvl=LEVEL_ICONS[b.level]||LEVEL_ICONS[1];
+                const isSprint=b.mode==="sprint";
+                return (
+                  <div key={b.level+"_"+b.mode+"_"+b.mode_value} className="best-card">
+                    <div className="best-card-top">
+                      <span className="best-level">{lvl.emoji} Lv.{b.level}</span>
+                      <span className="best-mode">{isSprint?b.mode_value+" 題":b.mode_value+" 分鐘"}</span>
+                    </div>
+                    <div className="best-main-value">
+                      {isSprint ? b.best_seconds+"s" : b.correct_count+" 題"}
+                    </div>
+                    <div className="best-sub">
+                      {TXT.bullseye} {b.accuracy}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── 歷史紀錄 Tab ───
+function HistoryTab({ profile }) {
+  const [records, setRecords] = React.useState(null);
+  const [range, setRange] = React.useState("7"); // 7, 30, all
+  const [filterOp, setFilterOp] = React.useState("");
+
+  React.useEffect(() => {
+    if(!profile) return;
+    const params = {};
+    if(filterOp) params.operation = filterOp;
+    if(range !== "all") {
+      const now = Date.now();
+      params.from = now - parseInt(range) * 86400000;
+    }
+    API.history(profile.id, params).then(setRecords).catch(()=>setRecords([]));
+  }, [profile, range, filterOp]);
+
+  if(!records) return <p className="profile-empty">載入中...</p>;
+
+  // Group by date for chart
+  const byDate = {};
+  records.forEach(r => {
+    const d = new Date(r.timestamp).toLocaleDateString("zh-TW",{month:"numeric",day:"numeric"});
+    if(!byDate[d]) byDate[d] = { count:0, correct:0 };
+    byDate[d].count += r.total_questions;
+    byDate[d].correct += r.correct_count;
+  });
+  const dates = Object.keys(byDate).reverse().slice(-14); // last 14 days with data
+  const maxCount = Math.max(1, ...dates.map(d => byDate[d].count));
+
+  return (
+    <div>
+      <div className="history-filters">
+        <select className="history-select" value={range} onChange={e=>setRange(e.target.value)}>
+          <option value="7">最近 7 天</option>
+          <option value="30">最近 30 天</option>
+          <option value="90">最近 90 天</option>
+          <option value="all">全部</option>
+        </select>
+        <select className="history-select" value={filterOp} onChange={e=>setFilterOp(e.target.value)}>
+          <option value="">全部運算</option>
+          <option value="addition">加法</option>
+          <option value="subtraction">減法</option>
+          <option value="multiplication">乘法</option>
+          <option value="division">除法</option>
+        </select>
+      </div>
+
+      {dates.length > 0 && (
+        <div className="rank-card">
+          <h3 style={{fontSize:"14px",fontWeight:700,marginBottom:"12px"}}>
+            {TXT.bullseye} 每日答題數
+          </h3>
+          <div className="history-chart">
+            {dates.map(d => {
+              const info = byDate[d];
+              const h = Math.max(8, (info.count / maxCount) * 120);
+              const acc = info.count > 0 ? Math.round(info.correct / info.count * 100) : 0;
+              return (
+                <div key={d} className="chart-col">
+                  <span className="chart-val">{info.count}</span>
+                  <div className="chart-bar-wrap">
+                    <div className="chart-bar" style={{height:h+"px"}} title={acc+"%"}>
+                      <div className="chart-bar-correct" style={{height:acc+"%"}}></div>
+                    </div>
+                  </div>
+                  <span className="chart-label">{d}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="chart-legend">
+            <span className="legend-item"><span className="legend-box legend-total"></span> 總題數</span>
+            <span className="legend-item"><span className="legend-box legend-correct"></span> 正確</span>
+          </div>
+        </div>
+      )}
+
+      <div className="rank-card">
+        <h3 style={{fontSize:"14px",fontWeight:700,marginBottom:"8px"}}>
+          {TXT.memo} 紀錄列表（{records.length} 筆）
+        </h3>
+        {records.length === 0 && <p className="profile-empty">沒有紀錄</p>}
+        <div className="history-list">
+          {records.slice(0,50).map((r,i) => {
+            const opInfo=OPERATION_LABELS[r.operation]||{icon:"",label:""};
+            const lvl=LEVEL_ICONS[r.level]||LEVEL_ICONS[1];
+            const dt=new Date(r.timestamp);
+            const dateStr=dt.toLocaleDateString("zh-TW",{month:"numeric",day:"numeric"})+" "+dt.toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"});
+            const isSprint=r.mode==="sprint";
+            return (
+              <div key={r.id||i} className="history-row">
+                <div className="history-row-top">
+                  <span className="history-badge">{opInfo.icon} {opInfo.label}</span>
+                  <span className="history-badge">{lvl.emoji} Lv.{r.level}</span>
+                  <span className="history-badge">{isSprint?r.mode_value+"題":r.mode_value+"分鐘"}</span>
+                  <span className="history-date">{dateStr}</span>
+                </div>
+                <div className="history-row-stats">
+                  <span>{TXT.check} {r.correct_count}/{r.total_questions}</span>
+                  <span>{TXT.bullseye} {r.accuracy}%</span>
+                  <span>{isSprint?TXT.timer+" "+r.total_seconds+"s":TXT.bolt+" "+r.correct_count+"題"}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

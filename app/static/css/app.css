@@ -1175,3 +1175,187 @@ body {
   text-align: right;
   flex-shrink: 0;
 }
+
+/* 3-column tabs */
+.rank-tabs-3 { gap: 6px; }
+.rank-tabs-3 .rank-tab { font-size: 13px; padding: 10px 6px; }
+.sub-tabs { margin-bottom: 12px; }
+.sub-tabs .rank-tab { font-size: 13px; padding: 8px; border-width: 1px; }
+
+/* --- Bests Grid --- */
+.bests-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.best-card {
+  background: #F8F7FF;
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+  border: 2px solid #E8E6FF;
+}
+
+.best-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.best-level { font-size: 13px; font-weight: 600; }
+.best-mode { font-size: 11px; color: var(--text-light); }
+
+.best-main-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+.best-sub {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+/* --- History Filters --- */
+.history-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.history-select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid #E8E6FF;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
+
+.history-select:focus { border-color: var(--primary); }
+
+/* --- History Chart --- */
+.history-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 160px;
+  padding: 8px 0;
+  overflow-x: auto;
+}
+
+.chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 32px;
+}
+
+.chart-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.chart-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.chart-bar {
+  width: 100%;
+  background: #E8E6FF;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+  overflow: hidden;
+  min-height: 8px;
+}
+
+.chart-bar-correct {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--primary);
+  border-radius: 6px 6px 0 0;
+}
+
+.chart-label {
+  font-size: 9px;
+  color: var(--text-light);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-box { width: 12px; height: 12px; border-radius: 3px; }
+.legend-total { background: #E8E6FF; }
+.legend-correct { background: var(--primary); }
+
+/* --- History List --- */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-row {
+  padding: 10px 12px;
+  background: #FAFAFE;
+  border-radius: var(--radius);
+  border: 1px solid #F0EEFF;
+}
+
+.history-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.history-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: #F0EEFF;
+  border-radius: 10px;
+  color: var(--primary);
+}
+
+.history-date {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-left: auto;
+}
+
+.history-row-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
