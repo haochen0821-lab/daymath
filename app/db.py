@@ -38,6 +38,40 @@ def init_db():
             practice_time_ms INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
         );
+        CREATE TABLE IF NOT EXISTS question_details (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            history_id INTEGER NOT NULL,
+            profile_id TEXT NOT NULL,
+            question_display TEXT NOT NULL,
+            correct_answer INTEGER NOT NULL,
+            user_answer INTEGER NOT NULL,
+            correct INTEGER NOT NULL,
+            time_ms INTEGER NOT NULL,
+            operation TEXT NOT NULL,
+            level INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL,
+            FOREIGN KEY (history_id) REFERENCES history(id) ON DELETE CASCADE,
+            FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS review_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL,
+            question_display TEXT NOT NULL,
+            correct_answer INTEGER NOT NULL,
+            user_answer INTEGER NOT NULL,
+            correct INTEGER NOT NULL,
+            time_ms INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL,
+            FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS dismissed_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL,
+            question_display TEXT NOT NULL,
+            correct_answer INTEGER NOT NULL,
+            dismissed_at INTEGER NOT NULL,
+            FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+        );
     """)
     # Migration: add practice_time_ms if missing
     try:

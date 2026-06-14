@@ -788,6 +788,39 @@ body {
   background: var(--primary-light);
 }
 
+.btn-guest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #4ECDC4 0%, #45B7D1 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(69, 183, 209, 0.3);
+  transition: all 0.2s;
+}
+.btn-guest:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(69, 183, 209, 0.45);
+  color: #fff;
+}
+.guest-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(69, 183, 209, 0.15);
+  color: #2596a8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 /* Add profile form */
 .profile-add-form {
   padding: 16px;
@@ -1179,6 +1212,9 @@ body {
 /* 3-column tabs */
 .rank-tabs-3 { gap: 6px; }
 .rank-tabs-3 .rank-tab { font-size: 13px; padding: 10px 6px; }
+/* 4-column tabs */
+.rank-tabs-4 { gap: 4px; }
+.rank-tabs-4 .rank-tab { font-size: 12px; padding: 10px 4px; }
 .sub-tabs { margin-bottom: 12px; }
 .sub-tabs .rank-tab { font-size: 13px; padding: 8px; border-width: 1px; }
 
@@ -1523,4 +1559,372 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
+}
+
+/* --- 錯題本 --- */
+.mistakes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mistake-row {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 4px solid;
+}
+.mistake-wrong {
+  background: var(--danger-light);
+  border-color: var(--danger);
+}
+.mistake-slow {
+  background: #FFF8E1;
+  border-color: var(--warning);
+}
+.mistake-question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.mistake-rank {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  min-width: 24px;
+}
+.mistake-display {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.mistake-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.mistake-answer-wrong {
+  color: var(--danger);
+  font-weight: 600;
+  text-decoration: line-through;
+}
+.mistake-answer-correct {
+  color: var(--success);
+  font-weight: 600;
+}
+.mistake-time {
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+/* --- 錯題本畫面 --- */
+.mistakes-screen {
+  padding: 20px 16px 40px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.btn-practice-mistakes {
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 100%) !important;
+  animation: pulse-glow 2s infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3); }
+  50% { box-shadow: 0 4px 25px rgba(255, 107, 107, 0.6); }
+}
+.setup-bottom-btns {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 12px;
+}
+.setup-bottom-btns .btn {
+  flex: 1;
+  margin-top: 0;
+  padding: 14px;
+  font-size: 18px;
+  border-radius: var(--radius-lg);
+}
+.btn-mistakes {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 100%);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.badge-review {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 100%);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* --- 複習統計 --- */
+.review-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  font-size: 12px;
+}
+.review-stats-label {
+  color: var(--text-light);
+  font-weight: 600;
+}
+.review-stat-correct {
+  color: var(--success);
+  font-weight: 600;
+}
+.review-stat-wrong {
+  color: var(--danger);
+  font-weight: 600;
+}
+.review-mastery {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* --- 移除按鈕 --- */
+.mistake-actions {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+.btn-dismiss {
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-dismiss:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+.dismiss-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.dismiss-confirm-text {
+  color: var(--text);
+  font-weight: 600;
+}
+.btn-dismiss-yes {
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-dismiss-no {
+  background: #eee;
+  color: var(--text);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-dismiss-ready {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(46, 204, 113, 0.08);
+  font-weight: 700;
+}
+
+/* --- 連續答對 / 精熟標記 --- */
+.review-stat-streak {
+  color: #e8590c;
+  font-weight: 700;
+}
+.mastery-flag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 193, 7, 0.18);
+  color: #b8860b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.mistake-mastered {
+  border-left: 4px solid #FFC107;
+}
+
+/* --- 多選刪除 --- */
+.mistakes-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mistakes-toolbar .history-select {
+  flex: 1;
+}
+.btn-select-toggle {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-select-cancel {
+  border-color: #ccc;
+  background: #f3f3f3;
+  color: var(--text-light);
+}
+.mistake-checkbox {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.mistake-selected {
+  background: var(--primary-light) !important;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.select-action-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+}
+.select-count {
+  font-weight: 700;
+  color: var(--text);
+}
+.btn-select-all, .btn-select-clear {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #f3f3f3;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-select-delete {
+  margin-left: auto;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-select-delete:disabled {
+  background: #ddd;
+  color: #999;
+  cursor: not-allowed;
+}
+
+/* --- 精熟建議移除 Modal --- */
+.mastery-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.mastery-modal {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.mastery-modal h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.mastery-modal-desc {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+.mastery-modal-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.mastery-modal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f7f7fb;
+  margin-bottom: 6px;
+}
+.mastery-modal-q {
+  font-weight: 700;
+  font-size: 15px;
+}
+.mastery-modal-streak {
+  font-size: 12px;
+  color: #e8590c;
+  font-weight: 700;
+}
+.mastery-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn-mastery-delete {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--success);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-mastery-keep {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  background: #f3f3f3;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
 }

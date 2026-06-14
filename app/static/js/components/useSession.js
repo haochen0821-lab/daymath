@@ -17,6 +17,7 @@ function useSession(profileId) {
   const [feedback, setFeedback] = useState(null);
   const [sessionResult, setSessionResult] = useState(null);
   const questionStartRef = useRef(null);
+  const reviewPoolRef = useRef(null); // 錯題練習題庫
 
   const nextQuestion = useCallback((operation, level) => {
     const q = QuestionGenerator.generate(operation, level);
@@ -25,8 +26,32 @@ function useSession(profileId) {
     return q;
   }, []);
 
+  // 錯題練習：從題庫取下一題
+  const nextReviewQuestion = useCallback((pool, index) => {
+    // 循環出題：做完一輪重新打散再來
+    const idx = index % pool.length;
+    if (idx === 0 && index > 0) {
+      // 重新打散
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+    const src = pool[idx];
+    const q = {
+      display: src.display,
+      answer: src.answer,
+      operation: src.operation,
+      level: src.level,
+    };
+    setCurrentQuestion(q);
+    questionStartRef.current = Date.now();
+    return q;
+  }, []);
+
   const startSession = useCallback((operation, level, mode, value) => {
     const cfg = { operation, level, mode, value };
+    reviewPoolRef.current = null;
     setConfig(cfg);
     setQuestionIndex(0);
     setCorrectCount(0);
@@ -41,6 +66,22 @@ function useSession(profileId) {
     nextQuestion(operation, level);
     setQuestionIndex(1);
   }, [timer, nextQuestion]);
+
+  // 錯題練習模式：sprint，題數 = 題庫大小
+  const startReviewSession = useCallback((pool) => {
+    if (!pool || pool.length === 0) return;
+    reviewPoolRef.current = pool;
+    const cfg = { operation: "review", level: 0, mode: "sprint", value: pool.length, isReview: true };
+    setConfig(cfg);
+    setQuestionIndex(0);
+    setCorrectCount(0);
+    setAnswers([]);
+    setFeedback(null);
+    setSessionResult(null);
+    timer.startSprint(pool.length, null);
+    nextReviewQuestion(pool, 0);
+    setQuestionIndex(1);
+  }, [timer, nextReviewQuestion]);
 
   const submitAnswer = useCallback((userAnswer) => {
     if (!currentQuestion || !config || timer.isFinished) return null;
@@ -60,28 +101,35 @@ function useSession(profileId) {
       timer.finishSprint();
       const result = buildResult(newAnswers, newCorrectCount, config, timer.elapsedSeconds);
       setSessionResult(result);
-      saveToServer(result);
+      if (config.isReview) saveReviewToServer(newAnswers);
+      else saveToServer(result, newAnswers);
       return { feedback: fb, finished: true, result };
     }
     if (config.mode === "timeAttack" && timer.isFinished) {
       const result = buildResult(newAnswers, newCorrectCount, config, timer.totalSeconds);
       setSessionResult(result);
-      saveToServer(result);
+      if (config.isReview) saveReviewToServer(newAnswers);
+      else saveToServer(result, newAnswers);
       return { feedback: fb, finished: true, result };
     }
     setTimeout(() => {
       setFeedback(null);
-      nextQuestion(config.operation, config.level);
+      if (reviewPoolRef.current) {
+        nextReviewQuestion(reviewPoolRef.current, newIndex - 1);
+      } else {
+        nextQuestion(config.operation, config.level);
+      }
       setQuestionIndex(newIndex);
     }, correct ? 300 : 1000);
     return { feedback: fb, finished: false };
-  }, [currentQuestion, config, timer, answers, correctCount, questionIndex, nextQuestion, profileId]);
+  }, [currentQuestion, config, timer, answers, correctCount, questionIndex, nextQuestion, nextReviewQuestion, profileId]);
 
   const finalizeTimeAttack = useCallback(() => {
     if (!config || sessionResult) return;
     const result = buildResult(answers, correctCount, config, config.value * 60);
     setSessionResult(result);
-    saveToServer(result);
+    if (config.isReview) saveReviewToServer(answers);
+    else saveToServer(result, answers);
   }, [config, answers, correctCount, sessionResult, profileId]);
 
   React.useEffect(() => {
@@ -104,11 +152,11 @@ function useSession(profileId) {
       modeValue: cfg.value, totalQuestions: total, correctCount: correct,
       accuracy: Math.round(accuracy * 10) / 10, totalSeconds: totalSecs,
       avgTimeMs: Math.round(avgTimeMs), fastestMs, practiceTimeMs,
-      timestamp: Date.now(),
+      timestamp: Date.now(), isReview: !!cfg.isReview,
     };
   }
 
-  function saveToServer(result) {
+  function saveToServer(result, answerList) {
     if (!profileId || result.totalQuestions === 0) return;
     fetch("/api/history", {
       method: "POST",
@@ -127,6 +175,32 @@ function useSession(profileId) {
         fastest_ms: result.fastestMs,
         timestamp: result.timestamp,
         practice_time_ms: result.practiceTimeMs || 0,
+        answers: (answerList || []).map(a => ({
+          question_display: a.question.display,
+          correct_answer: a.question.answer,
+          user_answer: a.userAnswer,
+          correct: a.correct,
+          time_ms: a.timeMs,
+        })),
+      }),
+    }).catch(() => {});
+  }
+
+  function saveReviewToServer(answerList) {
+    if (!profileId || !answerList || answerList.length === 0) return;
+    fetch("/api/review-results", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profile_id: profileId,
+        timestamp: Date.now(),
+        answers: answerList.map(a => ({
+          question_display: a.question.display,
+          correct_answer: a.question.answer,
+          user_answer: a.userAnswer,
+          correct: a.correct,
+          time_ms: a.timeMs,
+        })),
       }),
     }).catch(() => {});
   }
@@ -151,6 +225,7 @@ function useSession(profileId) {
 
   const resetSession = useCallback(() => {
     timer.reset();
+    reviewPoolRef.current = null;
     setConfig(null);
     setCurrentQuestion(null);
     setQuestionIndex(0);
@@ -163,6 +238,6 @@ function useSession(profileId) {
   return {
     config, currentQuestion, questionIndex, correctCount,
     totalAnswered: answers.length, feedback, sessionResult, timer,
-    startSession, submitAnswer, quitSession, resetSession,
+    startSession, startReviewSession, submitAnswer, quitSession, resetSession,
   };
 }

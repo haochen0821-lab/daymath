@@ -16,6 +16,12 @@ const LEVEL_ICONS = {
   2: { emoji: "\uD83E\uDD8C", label: "小鹿" },
   3: { emoji: "\uD83E\uDD81", label: "小獅子" },
   4: { emoji: "\uD83D\uDC32", label: "小龍" },
+  5: { emoji: "\uD83E\uDD84", label: "獨角獸" },
+  6: { emoji: "\uD83D\uDC18", label: "大象王" },
+  7: { emoji: "\uD83E\uDD96", label: "暴龍" },
+  8: { emoji: "\uD83D\uDC33", label: "巨鯨" },
+  9: { emoji: "\uD83E\uDD85", label: "神鷹" },
+  10: { emoji: "\uD83D\uDE80", label: "火箭" },
 };
 
 const TIME_OPTIONS = [1, 3, 5];
@@ -66,6 +72,11 @@ const API = {
   rankings: () => fetch("/api/rankings").then(r=>r.json()),
   personalBests: (pid) => fetch("/api/personal-bests/"+pid).then(r=>r.json()),
   practiceTime: (params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/practice-time?"+q).then(r=>r.json()); },
+  wrongQuestions: (pid,params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/wrong-questions/"+pid+"?"+q).then(r=>r.json()); },
+  slowestQuestions: (pid,params) => { const q=new URLSearchParams(params).toString(); return fetch("/api/slowest-questions/"+pid+"?"+q).then(r=>r.json()); },
+  saveReviewResults: (pid,answers,ts) => fetch("/api/review-results",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile_id:pid,answers,timestamp:ts})}).then(r=>r.json()),
+  dismissQuestion: (pid,display,answer) => fetch("/api/dismiss-question/"+pid,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question_display:display,correct_answer:answer})}).then(r=>r.json()),
+  restoreQuestion: (pid,display,answer) => fetch("/api/restore-question/"+pid,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question_display:display,correct_answer:answer})}).then(r=>r.json()),
 };
 
 // ─── Confetti ───
@@ -165,9 +176,14 @@ function ProfileScreen({ onSelect }) {
           ))}
         </div>
         {!showAdd ? (
-          <button className="btn btn-add-profile" onClick={() => setShowAdd(true)}>
-            {TXT.plus} 新增角色
-          </button>
+          <React.Fragment>
+            <button className="btn btn-add-profile" onClick={() => setShowAdd(true)}>
+              {TXT.plus} 新增角色
+            </button>
+            <button className="btn btn-guest" onClick={() => onSelect({ id: "__guest__", name: "訪客", avatar: "🙂", isGuest: true })}>
+              {TXT.rocket} 訪客模式（不需註冊，先玩玩看）
+            </button>
+          </React.Fragment>
         ) : (
           <div className="profile-add-form">
             <h4>建立新角色</h4>
@@ -194,7 +210,7 @@ function ProfileScreen({ onSelect }) {
 }
 
 // ─── Setup Screen ───
-function SetupScreen({ onStart, profile, onSwitchProfile, onRankings }) {
+function SetupScreen({ onStart, profile, onSwitchProfile, onRankings, onMistakes }) {
   const [operation, setOperation] = React.useState("addition");
   const [level, setLevel] = React.useState(1);
   const [mode, setMode] = React.useState("sprint"); // 預設定額衝刺
@@ -218,6 +234,7 @@ function SetupScreen({ onStart, profile, onSwitchProfile, onRankings }) {
           <span className="current-profile-info">
             <span className="current-profile-avatar">{profile.avatar}</span>
             <span>{TXT.wave} {profile.name}</span>
+            {profile.isGuest && <span className="guest-tag">訪客 · 成績不會保存</span>}
           </span>
           <button className="btn-switch-profile" onClick={onSwitchProfile}>{TXT.people} 切換角色</button>
         </div>
@@ -269,16 +286,21 @@ function SetupScreen({ onStart, profile, onSwitchProfile, onRankings }) {
       <button className="btn btn-start" onClick={()=>onStart(operation,level,mode,modeValue)}>
         {TXT.rocket} 出發！
       </button>
-      <button className="btn btn-rankings" onClick={onRankings}>
-        {TXT.trophy} 戰力排行
-      </button>
+      <div className="setup-bottom-btns">
+        <button className="btn btn-rankings" onClick={onRankings}>
+          {TXT.trophy} 戰力排行
+        </button>
+        <button className="btn btn-mistakes" onClick={onMistakes}>
+          {TXT.memo} 錯題本
+        </button>
+      </div>
       <a href="/admin" className="admin-link">{TXT.gear} 後台管理</a>
     </div>
   );
 }
 
 // ─── Practice Screen ───
-function PracticeScreen({ session, profile }) {
+function PracticeScreen({ session, profile, onReviewDone }) {
   const [input, setInput] = React.useState("");
   const [showStar, setShowStar] = React.useState(false);
 
@@ -308,7 +330,7 @@ function PracticeScreen({ session, profile }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [session.feedback, session.sessionResult]);
 
-  if (session.sessionResult) return <ResultScreen session={session} profile={profile} />;
+  if (session.sessionResult) return <ResultScreen session={session} profile={profile} onReviewDone={onReviewDone} />;
 
   const { config, timer } = session;
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
@@ -318,9 +340,15 @@ function PracticeScreen({ session, profile }) {
     <div className={"practice-screen" + (session.feedback?.type==="correct"?" flash-correct":"") + (session.feedback?.type==="wrong"?" flash-wrong":"")}>
       <div className="practice-header">
         <div className="practice-info">
-          <span className="badge badge-op">{OPERATION_LABELS[config.operation].icon} {OPERATION_LABELS[config.operation].label}</span>
-          <span className="badge badge-level">{levelIcon.emoji} Lv.{config.level}</span>
-          <span className="badge badge-mode">{modeEmoji} {MODE_LABELS[config.mode]}</span>
+          {config.isReview ? (
+            <span className="badge badge-review">{TXT.memo} 錯題練習</span>
+          ) : (
+            <React.Fragment>
+              <span className="badge badge-op">{OPERATION_LABELS[config.operation].icon} {OPERATION_LABELS[config.operation].label}</span>
+              <span className="badge badge-level">{levelIcon.emoji} Lv.{config.level}</span>
+              <span className="badge badge-mode">{modeEmoji} {MODE_LABELS[config.mode]}</span>
+            </React.Fragment>
+          )}
         </div>
         <div className="practice-stats">
           <span className="timer">{timer.displayTime}</span>
@@ -359,16 +387,17 @@ function PracticeScreen({ session, profile }) {
 }
 
 // ─── Result Screen ───
-function ResultScreen({ session, profile }) {
+function ResultScreen({ session, profile, onReviewDone }) {
   const { sessionResult: r, config } = session;
   const [showConfetti, setShowConfetti] = React.useState(false);
   const [leaderboard, setLeaderboard] = React.useState([]);
   const [pb, setPb] = React.useState(null);
 
   const isIncomplete = !!r.incomplete;
+  const isReview = !!r.isReview;
 
   React.useEffect(() => {
-    if (!profile || isIncomplete) return;
+    if (!profile || isIncomplete || isReview) return;
     // 只有完成的才載入排行榜和個人最佳比較
     API.leaderboard(config.operation, config.level, config.mode, config.modeValue).then(setLeaderboard).catch(() => {});
     API.history(profile.id, {operation:config.operation, level:config.level, mode:config.mode, mode_value:config.modeValue}).then((rows) => {
@@ -406,7 +435,9 @@ function ResultScreen({ session, profile }) {
     if (!isIncomplete && (isNewRecord || r.accuracy === 100)) setShowConfetti(true);
   }, [isNewRecord, r.accuracy, pb]);
 
-  const encouragement = isIncomplete ? "挑戰中途結束，成績不列入排行" : getEncouragement(r.accuracy);
+  const encouragement = isIncomplete ? "挑戰中途結束，成績不列入排行"
+    : isReview ? (r.accuracy === 100 ? "錯題全部征服！太厲害了！" : "繼續加油，把弱點攻克！")
+    : getEncouragement(r.accuracy);
   const levelIcon = LEVEL_ICONS[config.level] || LEVEL_ICONS[1];
   const starCount = isIncomplete ? 0 : (r.accuracy === 100 ? 3 : r.accuracy >= 80 ? 2 : r.accuracy >= 50 ? 1 : 0);
 
@@ -467,6 +498,11 @@ function ResultScreen({ session, profile }) {
       )}
       <div className="result-actions">
         <button className="btn btn-start" onClick={session.resetSession}>{TXT.refresh} 再來一次！</button>
+        {onReviewDone && (
+          <button className="btn btn-rankings" onClick={onReviewDone} style={{marginTop:"8px"}}>
+            {TXT.memo} 回到錯題本
+          </button>
+        )}
       </div>
     </div>
   );
@@ -620,6 +656,281 @@ function BestsTab({ profile }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── 錯題本畫面 ───
+function MistakesScreen({ profile, session, onBack }) {
+  const [wrongQs, setWrongQs] = React.useState(null);
+  const [slowQs, setSlowQs] = React.useState(null);
+  const [filterOp, setFilterOp] = React.useState("");
+  const [subTab, setSubTab] = React.useState("wrong"); // wrong | slow
+  const [confirmDismiss, setConfirmDismiss] = React.useState(null); // key of question being confirmed
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selected, setSelected] = React.useState({}); // qKey -> question
+  const [masterySuggest, setMasterySuggest] = React.useState([]); // streak>=3 建議刪除清單
+  const promptedRef = React.useRef(new Set()); // 已提醒過的題目（避免重複跳窗）
+
+  const MASTERY_STREAK = 3;
+  const qKeyOf = (q) => q.question_display + "|" + q.correct_answer;
+
+  const reload = () => {
+    if (!profile) return;
+    const params = {};
+    if (filterOp) params.operation = filterOp;
+    params.limit = 50;
+    API.wrongQuestions(profile.id, params).then((data) => {
+      setWrongQs(data);
+      // 找出連續答對達標、且尚未提醒過的題目 → 跳出建議刪除提醒
+      const fresh = (data || []).filter(
+        (q) => (q.review_streak || 0) >= MASTERY_STREAK && !promptedRef.current.has(qKeyOf(q))
+      );
+      if (fresh.length > 0) {
+        fresh.forEach((q) => promptedRef.current.add(qKeyOf(q)));
+        setMasterySuggest(fresh);
+      }
+    }).catch(() => setWrongQs([]));
+    const slowParams = { ...params, limit: 10 };
+    API.slowestQuestions(profile.id, slowParams).then(setSlowQs).catch(() => setSlowQs([]));
+  };
+
+  React.useEffect(reload, [profile, filterOp]);
+
+  // 如果正在練習錯題，顯示練習畫面
+  if (session.config) {
+    return <PracticeScreen session={session} profile={profile} onReviewDone={() => { session.resetSession(); reload(); }} />;
+  }
+
+  if (!wrongQs || !slowQs) return <div className="mistakes-screen"><p className="profile-empty">載入中...</p></div>;
+
+  const items = subTab === "wrong" ? wrongQs : slowQs;
+
+  // 產生練習題庫
+  const buildPracticePool = () => {
+    const pool = subTab === "wrong" ? wrongQs : slowQs;
+    return pool.map(q => ({
+      display: q.question_display,
+      answer: q.correct_answer,
+      operation: q.operation,
+      level: q.level,
+    }));
+  };
+
+  const startPractice = () => {
+    const pool = buildPracticePool();
+    if (pool.length === 0) return;
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    session.startReviewSession(pool);
+  };
+
+  const handleDismiss = (q) => {
+    API.dismissQuestion(profile.id, q.question_display, q.correct_answer).then(() => {
+      setConfirmDismiss(null);
+      reload();
+    });
+  };
+
+  // 批次移除多題
+  const dismissMany = (list) => {
+    if (!list || list.length === 0) return Promise.resolve();
+    return Promise.all(
+      list.map((q) => API.dismissQuestion(profile.id, q.question_display, q.correct_answer))
+    ).then(() => reload());
+  };
+
+  const toggleSelect = (q) => {
+    const k = qKeyOf(q);
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[k]) delete next[k]; else next[k] = q;
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => { setSelectMode(false); setSelected({}); };
+
+  const handleDeleteSelected = () => {
+    const list = Object.values(selected);
+    if (list.length === 0) return;
+    dismissMany(list).then(exitSelectMode);
+  };
+
+  const handleMasteryDelete = () => {
+    dismissMany(masterySuggest).then(() => setMasterySuggest([]));
+  };
+
+  const poolSize = buildPracticePool().length;
+  const selectedCount = Object.keys(selected).length;
+
+  return (
+    <div className="mistakes-screen">
+      <div className="app-header">
+        <h1 className="app-title">{TXT.memo} 錯題本</h1>
+        <p className="app-subtitle">{profile.avatar} {profile.name} 的弱點攻略</p>
+      </div>
+
+      <div className="rank-tabs sub-tabs">
+        <button className={"rank-tab" + (subTab === "wrong" ? " rank-tab-active" : "")} onClick={() => setSubTab("wrong")}>
+          {TXT.cross} 答錯題目
+        </button>
+        <button className={"rank-tab" + (subTab === "slow" ? " rank-tab-active" : "")} onClick={() => setSubTab("slow")}>
+          {TXT.timer} 最慢題目
+        </button>
+      </div>
+
+      {poolSize > 0 && (
+        <button className="btn btn-start btn-practice-mistakes" onClick={startPractice}>
+          {TXT.fire} 練習{subTab === "wrong" ? "錯題" : "慢題"}（{poolSize} 題）
+        </button>
+      )}
+
+      <div className="history-filters mistakes-toolbar">
+        <select className="history-select" value={filterOp} onChange={e => setFilterOp(e.target.value)}>
+          <option value="">全部運算</option>
+          <option value="addition">加法</option>
+          <option value="subtraction">減法</option>
+          <option value="multiplication">乘法</option>
+          <option value="division">除法</option>
+        </select>
+        {!selectMode ? (
+          <button className="btn-select-toggle" onClick={() => setSelectMode(true)}>
+            {TXT.check} 多選刪除
+          </button>
+        ) : (
+          <button className="btn-select-toggle btn-select-cancel" onClick={exitSelectMode}>
+            取消多選
+          </button>
+        )}
+      </div>
+
+      <div className="rank-card">
+        <h3 style={{fontSize: "14px", fontWeight: 700, marginBottom: "8px"}}>
+          {subTab === "wrong" ? TXT.cross + " 答錯的題目（" + items.length + " 題）" : TXT.timer + " 最慢的題目（前 " + items.length + " 題）"}
+        </h3>
+        {items.length === 0 && (
+          <p className="profile-empty">{subTab === "wrong" ? "沒有答錯的紀錄，太厲害了！" : "還沒有作答紀錄"}</p>
+        )}
+        <div className="mistakes-list">
+          {items.map((q, i) => {
+            const opInfo = OPERATION_LABELS[q.operation] || {icon: "", label: ""};
+            const lvl = LEVEL_ICONS[q.level] || LEVEL_ICONS[1];
+            const dt = new Date(q.timestamp);
+            const dateStr = dt.toLocaleDateString("zh-TW", {month: "numeric", day: "numeric"}) + " " + dt.toLocaleTimeString("zh-TW", {hour: "2-digit", minute: "2-digit"});
+            const rc = q.review_correct || 0;
+            const rw = q.review_wrong || 0;
+            const hasReview = rc + rw > 0;
+            const qKey = q.question_display + "|" + q.correct_answer;
+            const streak = q.review_streak || 0;
+            const mastered = streak >= MASTERY_STREAK;
+            const isSel = !!selected[qKey];
+            return (
+              <div key={qKey + "|" + i}
+                className={"mistake-row" + (subTab === "wrong" ? " mistake-wrong" : " mistake-slow")
+                  + (mastered ? " mistake-mastered" : "") + (selectMode && isSel ? " mistake-selected" : "")}
+                onClick={selectMode ? () => toggleSelect(q) : undefined}>
+                <div className="mistake-question">
+                  {selectMode && (
+                    <input type="checkbox" className="mistake-checkbox" checked={isSel}
+                      onChange={() => toggleSelect(q)} onClick={(e) => e.stopPropagation()} />
+                  )}
+                  <span className="mistake-rank">{subTab === "slow" ? "#" + (i + 1) : ""}</span>
+                  <span className="mistake-display">{q.question_display} = ?</span>
+                  {mastered && <span className="mastery-flag">{TXT.trophy} 連續答對 {streak} 次</span>}
+                </div>
+                <div className="mistake-details">
+                  <span className="history-badge">{opInfo.icon} {opInfo.label}</span>
+                  <span className="history-badge">{lvl.emoji} Lv.{q.level}</span>
+                  {subTab === "wrong" && (
+                    <span className="mistake-answer-wrong">你的答案：{q.user_answer}</span>
+                  )}
+                  <span className="mistake-answer-correct">正確答案：{q.correct_answer}</span>
+                  <span className="mistake-time">{TXT.bolt} {(q.time_ms / 1000).toFixed(1)}s</span>
+                  <span className="history-date">{dateStr}</span>
+                </div>
+                {hasReview && (
+                  <div className="review-stats">
+                    <span className="review-stats-label">複習紀錄：</span>
+                    <span className="review-stat-correct">{TXT.check} 答對 {rc} 次</span>
+                    <span className="review-stat-wrong">{TXT.cross} 答錯 {rw} 次</span>
+                    <span className="review-stat-streak">{TXT.fire} 連續答對 {streak} 次</span>
+                    {rc > 0 && (
+                      <span className="review-mastery">
+                        {mastered ? TXT.trophy + " 已精熟" : rc >= rw ? TXT.star + " 進步中" : TXT.muscle + " 需加強"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {!selectMode && (
+                  <div className="mistake-actions">
+                    {confirmDismiss === qKey ? (
+                      <div className="dismiss-confirm">
+                        <span className="dismiss-confirm-text">確定移除？</span>
+                        <button className="btn-dismiss-yes" onClick={() => handleDismiss(q)}>移除</button>
+                        <button className="btn-dismiss-no" onClick={() => setConfirmDismiss(null)}>取消</button>
+                      </div>
+                    ) : (
+                      <button className={"btn-dismiss" + (mastered ? " btn-dismiss-ready" : "")} onClick={() => setConfirmDismiss(qKey)}>
+                        {TXT.check} 已學會，移除
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <button className="btn btn-start" onClick={onBack} style={{marginTop: "16px"}}>
+        {TXT.refresh} 回到首頁
+      </button>
+
+      {selectMode && (
+        <div className="select-action-bar">
+          <span className="select-count">已選 {selectedCount} 題</span>
+          <button className="btn-select-all"
+            onClick={() => {
+              const all = {};
+              items.forEach((q) => { all[qKeyOf(q)] = q; });
+              setSelected(all);
+            }}>全選本頁</button>
+          <button className="btn-select-clear" onClick={() => setSelected({})}>清除</button>
+          <button className="btn-select-delete" disabled={selectedCount === 0} onClick={handleDeleteSelected}>
+            {TXT.trash} 刪除所選（{selectedCount}）
+          </button>
+        </div>
+      )}
+
+      {masterySuggest.length > 0 && (
+        <div className="mastery-modal-overlay" onClick={() => setMasterySuggest([])}>
+          <div className="mastery-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>{TXT.trophy} 太棒了！</h3>
+            <p className="mastery-modal-desc">
+              以下題目已<b>連續答對 {MASTERY_STREAK} 次</b>，看起來已經學會了，要不要從錯題本移除？
+            </p>
+            <div className="mastery-modal-list">
+              {masterySuggest.map((q) => (
+                <div key={qKeyOf(q)} className="mastery-modal-item">
+                  <span className="mastery-modal-q">{q.question_display} = {q.correct_answer}</span>
+                  <span className="mastery-modal-streak">{TXT.fire} 連對 {q.review_streak} 次</span>
+                </div>
+              ))}
+            </div>
+            <div className="mastery-modal-actions">
+              <button className="btn-mastery-delete" onClick={handleMasteryDelete}>
+                {TXT.check} 好，移除這 {masterySuggest.length} 題
+              </button>
+              <button className="btn-mastery-keep" onClick={() => setMasterySuggest([])}>
+                先保留
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -891,8 +1202,9 @@ function HistoryTab({ profile }) {
 // ─── Main App ───
 function App() {
   const [profile, setProfile] = React.useState(null);
-  const [screen, setScreen] = React.useState("setup"); // setup | rankings
-  const session = useSession(profile ? profile.id : null);
+  const [screen, setScreen] = React.useState("setup"); // setup | rankings | mistakes
+  // 訪客模式不存任何資料（profileId 傳 null，session 不寫回伺服器）
+  const session = useSession(profile && !profile.isGuest ? profile.id : null);
 
   const handleSwitchProfile = () => {
     session.resetSession();
@@ -906,12 +1218,18 @@ function App() {
     return <RankingsScreen profile={profile} onBack={() => setScreen("setup")} />;
   }
 
+  if (screen === "mistakes") {
+    return <MistakesScreen profile={profile} session={session}
+      onBack={() => { session.resetSession(); setScreen("setup"); }} />;
+  }
+
   if (!session.config) {
     return <SetupScreen
       onStart={session.startSession}
       profile={profile}
       onSwitchProfile={handleSwitchProfile}
       onRankings={() => setScreen("rankings")}
+      onMistakes={() => setScreen("mistakes")}
     />;
   }
   return <PracticeScreen session={session} profile={profile} />;

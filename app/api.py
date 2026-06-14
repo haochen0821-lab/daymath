@@ -109,7 +109,7 @@ def get_history(profile_id):
 def save_history():
     d = request.get_json()
     conn = get_db()
-    conn.execute("""
+    cur = conn.execute("""
         INSERT INTO history
         (profile_id, operation, level, mode, mode_value, total_questions,
          correct_count, accuracy, total_seconds, avg_time_ms, fastest_ms,
@@ -121,6 +121,21 @@ def save_history():
         d["accuracy"], d["total_seconds"], d["avg_time_ms"],
         d["fastest_ms"], d["timestamp"], d.get("practice_time_ms", 0),
     ))
+    history_id = cur.lastrowid
+    # 儲存每題明細
+    answers = d.get("answers", [])
+    for a in answers:
+        conn.execute("""
+            INSERT INTO question_details
+            (history_id, profile_id, question_display, correct_answer,
+             user_answer, correct, time_ms, operation, level, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            history_id, d["profile_id"], a["question_display"],
+            a["correct_answer"], a["user_answer"],
+            1 if a["correct"] else 0, a["time_ms"],
+            d["operation"], d["level"], d["timestamp"],
+        ))
     conn.commit()
     conn.close()
     return jsonify({"ok": True}), 201
@@ -240,6 +255,230 @@ def rankings():
 
     conn.close()
     return jsonify([dict(r) for r in sprint_rows] + [dict(r) for r in ta_rows])
+
+
+# ──────────── 錯題本 ────────────
+
+def _review_stats(conn, profile_id):
+    """回傳每題的複習統計：答對次數、答錯次數、目前連續答對次數（streak）。"""
+    stats = {}
+    rows = conn.execute(
+        """SELECT question_display, correct_answer, correct
+           FROM review_attempts WHERE profile_id = ?
+           ORDER BY id ASC""",
+        (profile_id,),
+    ).fetchall()
+    for r in rows:
+        key = (r["question_display"], r["correct_answer"])
+        s = stats.get(key)
+        if s is None:
+            s = {"review_correct": 0, "review_wrong": 0, "review_streak": 0}
+            stats[key] = s
+        if r["correct"]:
+            s["review_correct"] += 1
+            s["review_streak"] += 1  # 連續答對 +1
+        else:
+            s["review_wrong"] += 1
+            s["review_streak"] = 0   # 答錯就歸零
+    return stats
+
+
+@api.route("/wrong-questions/<profile_id>", methods=["GET"])
+def wrong_questions(profile_id):
+    """取得答錯的題目（去重），附帶複習統計，排除已移除的。"""
+    op = request.args.get("operation")
+    lvl = request.args.get("level")
+    ts_from = request.args.get("from")
+    ts_to = request.args.get("to")
+    limit = request.args.get("limit", "50")
+
+    conn = get_db()
+
+    # 取得已移除的題目
+    dismissed = set()
+    for r in conn.execute(
+        "SELECT question_display, correct_answer FROM dismissed_questions WHERE profile_id = ?",
+        (profile_id,),
+    ).fetchall():
+        dismissed.add((r["question_display"], r["correct_answer"]))
+
+    # 取得答錯的題目（去重，取最新一筆）
+    sql = """SELECT qd.question_display, qd.correct_answer, qd.user_answer,
+                    qd.time_ms, qd.operation, qd.level, qd.timestamp,
+                    MAX(qd.id) as id
+             FROM question_details qd JOIN history h ON qd.history_id = h.id
+             WHERE qd.profile_id = ? AND qd.correct = 0"""
+    params = [profile_id]
+    if op:
+        sql += " AND qd.operation = ?"
+        params.append(op)
+    if lvl:
+        sql += " AND qd.level = ?"
+        params.append(int(lvl))
+    if ts_from:
+        sql += " AND qd.timestamp >= ?"
+        params.append(int(ts_from))
+    if ts_to:
+        sql += " AND qd.timestamp <= ?"
+        params.append(int(ts_to))
+    sql += " GROUP BY qd.question_display, qd.correct_answer"
+    sql += " ORDER BY qd.timestamp DESC LIMIT ?"
+    params.append(int(limit))
+    rows = conn.execute(sql, params).fetchall()
+
+    # 取得每題的複習統計
+    review_stats = _review_stats(conn, profile_id)
+    default_stat = {"review_correct": 0, "review_wrong": 0, "review_streak": 0}
+
+    result = []
+    for r in rows:
+        key = (r["question_display"], r["correct_answer"])
+        if key in dismissed:
+            continue
+        item = dict(r)
+        stats = review_stats.get(key, default_stat)
+        item["review_correct"] = stats["review_correct"]
+        item["review_wrong"] = stats["review_wrong"]
+        item["review_streak"] = stats["review_streak"]
+        result.append(item)
+
+    conn.close()
+    return jsonify(result)
+
+
+@api.route("/slowest-questions/<profile_id>", methods=["GET"])
+def slowest_questions(profile_id):
+    """取得作答最慢的前 N 題。"""
+    op = request.args.get("operation")
+    lvl = request.args.get("level")
+    ts_from = request.args.get("from")
+    ts_to = request.args.get("to")
+    limit = request.args.get("limit", "10")
+
+    conn = get_db()
+
+    dismissed = set()
+    for r in conn.execute(
+        "SELECT question_display, correct_answer FROM dismissed_questions WHERE profile_id = ?",
+        (profile_id,),
+    ).fetchall():
+        dismissed.add((r["question_display"], r["correct_answer"]))
+
+    sql = """SELECT qd.question_display, qd.correct_answer, qd.user_answer,
+                    MAX(qd.time_ms) as time_ms, qd.operation, qd.level, qd.timestamp,
+                    MAX(qd.id) as id
+             FROM question_details qd JOIN history h ON qd.history_id = h.id
+             WHERE qd.profile_id = ?"""
+    params = [profile_id]
+    if op:
+        sql += " AND qd.operation = ?"
+        params.append(op)
+    if lvl:
+        sql += " AND qd.level = ?"
+        params.append(int(lvl))
+    if ts_from:
+        sql += " AND qd.timestamp >= ?"
+        params.append(int(ts_from))
+    if ts_to:
+        sql += " AND qd.timestamp <= ?"
+        params.append(int(ts_to))
+    sql += " GROUP BY qd.question_display, qd.correct_answer"
+    sql += " ORDER BY time_ms DESC LIMIT ?"
+    # 多取一些以排除 dismissed 後仍有足夠結果
+    params.append(int(limit) + len(dismissed))
+    rows = conn.execute(sql, params).fetchall()
+
+    review_stats = _review_stats(conn, profile_id)
+    default_stat = {"review_correct": 0, "review_wrong": 0, "review_streak": 0}
+
+    result = []
+    for r in rows:
+        key = (r["question_display"], r["correct_answer"])
+        if key in dismissed:
+            continue
+        item = dict(r)
+        stats = review_stats.get(key, default_stat)
+        item["review_correct"] = stats["review_correct"]
+        item["review_wrong"] = stats["review_wrong"]
+        item["review_streak"] = stats["review_streak"]
+        result.append(item)
+        if len(result) >= int(limit):
+            break
+
+    conn.close()
+    return jsonify(result)
+
+
+@api.route("/review-results", methods=["POST"])
+def save_review_results():
+    """儲存錯題練習的每題結果。"""
+    d = request.get_json()
+    profile_id = d.get("profile_id")
+    answers = d.get("answers", [])
+    ts = d.get("timestamp", int(time.time() * 1000))
+    if not profile_id or not answers:
+        return jsonify({"error": "missing data"}), 400
+    conn = get_db()
+    for a in answers:
+        conn.execute("""
+            INSERT INTO review_attempts
+            (profile_id, question_display, correct_answer, user_answer,
+             correct, time_ms, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            profile_id, a["question_display"], a["correct_answer"],
+            a["user_answer"], 1 if a["correct"] else 0,
+            a["time_ms"], ts,
+        ))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True}), 201
+
+
+@api.route("/dismiss-question/<profile_id>", methods=["POST"])
+def dismiss_question(profile_id):
+    """將題目從錯題本移除。"""
+    d = request.get_json()
+    display = d.get("question_display")
+    answer = d.get("correct_answer")
+    if not display or answer is None:
+        return jsonify({"error": "missing data"}), 400
+    conn = get_db()
+    # 避免重複
+    existing = conn.execute(
+        """SELECT id FROM dismissed_questions
+           WHERE profile_id = ? AND question_display = ? AND correct_answer = ?""",
+        (profile_id, display, answer),
+    ).fetchone()
+    if not existing:
+        conn.execute(
+            """INSERT INTO dismissed_questions
+               (profile_id, question_display, correct_answer, dismissed_at)
+               VALUES (?, ?, ?, ?)""",
+            (profile_id, display, answer, int(time.time() * 1000)),
+        )
+        conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@api.route("/restore-question/<profile_id>", methods=["POST"])
+def restore_question(profile_id):
+    """將已移除的題目恢復到錯題本。"""
+    d = request.get_json()
+    display = d.get("question_display")
+    answer = d.get("correct_answer")
+    if not display or answer is None:
+        return jsonify({"error": "missing data"}), 400
+    conn = get_db()
+    conn.execute(
+        """DELETE FROM dismissed_questions
+           WHERE profile_id = ? AND question_display = ? AND correct_answer = ?""",
+        (profile_id, display, answer),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
 
 
 # ──────────── Icon Upload ────────────
