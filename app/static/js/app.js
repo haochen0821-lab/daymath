@@ -117,6 +117,15 @@ function NumPad({ value, onChange, onSubmit, disabled }) {
   );
 }
 
+// ─── 常駐首頁按鈕（畫面頂端一角）───
+function HomeButton({ onClick }) {
+  return (
+    <button className="home-btn" onClick={onClick} title="回到首頁" aria-label="回到首頁">
+      🏠
+    </button>
+  );
+}
+
 // ─── Profile Screen (API) ───
 function ProfileScreen({ onSelect }) {
   const [profiles, setProfiles] = React.useState([]);
@@ -513,6 +522,7 @@ function RankingsScreen({ profile, onBack }) {
   const [mainTab, setMainTab] = React.useState("rankings"); // rankings | history | bests
   return (
     <div className="rankings-screen">
+      <HomeButton onClick={onBack} />
       <div className="app-header">
         <h1 className="app-title">{TXT.trophy} 戰力中心</h1>
       </div>
@@ -530,9 +540,6 @@ function RankingsScreen({ profile, onBack }) {
       {mainTab === "rankings" && <RankingsTab profile={profile} />}
       {mainTab === "bests" && <BestsTab profile={profile} />}
       {mainTab === "history" && <HistoryTab profile={profile} />}
-      <button className="btn btn-start" onClick={onBack} style={{marginTop:"16px"}}>
-        {TXT.refresh} 回到首頁
-      </button>
     </div>
   );
 }
@@ -768,6 +775,7 @@ function MistakesScreen({ profile, session, onBack }) {
 
   return (
     <div className="mistakes-screen">
+      <HomeButton onClick={onBack} />
       <div className="app-header">
         <h1 className="app-title">{TXT.memo} 錯題本</h1>
         <p className="app-subtitle">{profile.avatar} {profile.name} 的弱點攻略</p>
@@ -884,10 +892,6 @@ function MistakesScreen({ profile, session, onBack }) {
           })}
         </div>
       </div>
-
-      <button className="btn btn-start" onClick={onBack} style={{marginTop: "16px"}}>
-        {TXT.refresh} 回到首頁
-      </button>
 
       {selectMode && (
         <div className="select-action-bar">
