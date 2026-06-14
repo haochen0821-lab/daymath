@@ -2001,6 +2001,7 @@ body {
   font-size: 14px;
   color: var(--text);
 }
+.group-bar-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .btn-logout {
   padding: 6px 14px;
   border: 1px solid #ccc;

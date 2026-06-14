@@ -169,6 +169,27 @@ def change_password():
     return jsonify({"ok": True})
 
 
+@auth.route("/change-group-name", methods=["POST"])
+@login_required
+def change_group_name():
+    """成員修改自己群組的名稱。"""
+    d = request.get_json() or {}
+    name = (d.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "群組名稱不可空白"}), 400
+    if len(name) > 20:
+        return jsonify({"error": "群組名稱請在 20 字以內"}), 400
+    acc = current_account()
+    gid = acc["group_id"]
+    if not gid:
+        return jsonify({"error": "此帳號沒有所屬群組"}), 400
+    conn = get_db()
+    conn.execute("UPDATE groups SET name = ? WHERE id = ?", (name, gid))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
 # ──────────── 超管：群組與審核管理 ────────────
 
 @auth.route("/admin/overview", methods=["GET"])

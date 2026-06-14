@@ -83,6 +83,7 @@ const API = {
     logout: () => fetch("/api/auth/logout",{method:"POST"}).then(r=>r.json()),
     register: (username,password,group_name) => fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password,group_name})}).then(r=>r.json()),
     changePassword: (old_password,new_password) => fetch("/api/auth/change-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({old_password,new_password})}).then(r=>r.json()),
+    changeGroupName: (name) => fetch("/api/auth/change-group-name",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})}).then(r=>r.json()),
     overview: () => fetch("/api/auth/admin/overview").then(r=>r.json()),
     approve: (id) => fetch("/api/auth/admin/approve/"+id,{method:"POST"}).then(r=>r.json()),
     reject: (id) => fetch("/api/auth/admin/reject/"+id,{method:"POST"}).then(r=>r.json()),
@@ -140,8 +141,69 @@ function HomeButton({ onClick }) {
   );
 }
 
+// ─── 帳號設定（成員自助：改群組名稱、改密碼）───
+function AccountSettings({ auth, onClose, onRefresh }) {
+  const [groupName, setGroupName] = React.useState(auth.view_group_name || "");
+  const [gMsg, setGMsg] = React.useState(null);
+  const [oldPw, setOldPw] = React.useState("");
+  const [newPw, setNewPw] = React.useState("");
+  const [newPw2, setNewPw2] = React.useState("");
+  const [pMsg, setPMsg] = React.useState(null);
+
+  const saveGroup = () => {
+    if (!groupName.trim()) { setGMsg({type:"err",text:"群組名稱不可空白"}); return; }
+    API.auth.changeGroupName(groupName.trim()).then(r => {
+      if (r.error) { setGMsg({type:"err",text:r.error}); return; }
+      setGMsg({type:"ok",text:"群組名稱已更新"});
+      onRefresh && onRefresh();
+    });
+  };
+
+  const savePw = () => {
+    if (newPw.length < 4) { setPMsg({type:"err",text:"新密碼至少 4 個字元"}); return; }
+    if (newPw !== newPw2) { setPMsg({type:"err",text:"兩次新密碼不一致"}); return; }
+    API.auth.changePassword(oldPw, newPw).then(r => {
+      if (r.error) { setPMsg({type:"err",text:r.error}); return; }
+      setPMsg({type:"ok",text:"密碼已修改"});
+      setOldPw(""); setNewPw(""); setNewPw2("");
+    });
+  };
+
+  return (
+    <div className="profile-screen">
+      <div className="app-header">
+        <h1 className="app-title">{TXT.gear} 帳號設定</h1>
+        <p className="app-subtitle">帳號：{auth.account.username}</p>
+      </div>
+
+      <div className="setup-card">
+        <h3>{TXT.people} 修改群組名稱</h3>
+        <input type="text" className="auth-input" placeholder="群組名稱" value={groupName}
+          onChange={e=>setGroupName(e.target.value)} maxLength={20} />
+        {gMsg && <div className={"auth-msg "+(gMsg.type==="ok"?"auth-msg-ok":"auth-msg-err")}>{gMsg.text}</div>}
+        <button className="btn btn-cute btn-active" style={{marginTop:"10px"}} onClick={saveGroup}>儲存群組名稱</button>
+      </div>
+
+      <div className="setup-card">
+        <h3>🔒 修改密碼</h3>
+        <input type="password" className="auth-input" placeholder="目前密碼" value={oldPw} onChange={e=>setOldPw(e.target.value)} autoComplete="current-password" />
+        <input type="password" className="auth-input" placeholder="新密碼" value={newPw} onChange={e=>setNewPw(e.target.value)} autoComplete="new-password" />
+        <input type="password" className="auth-input" placeholder="再次輸入新密碼" value={newPw2} onChange={e=>setNewPw2(e.target.value)} autoComplete="new-password" />
+        {pMsg && <div className={"auth-msg "+(pMsg.type==="ok"?"auth-msg-ok":"auth-msg-err")}>{pMsg.text}</div>}
+        <button className="btn btn-cute btn-active" style={{marginTop:"10px"}} onClick={savePw}>儲存新密碼</button>
+      </div>
+
+      <button className="btn btn-start" onClick={onClose}>{TXT.refresh} 回到角色選擇</button>
+    </div>
+  );
+}
+
 // ─── Profile Screen (API) ───
-function ProfileScreen({ onSelect, auth, onLogout }) {
+function ProfileScreen({ onSelect, auth, onLogout, onRefresh }) {
+  const [showSettings, setShowSettings] = React.useState(false);
+  if (showSettings && auth && auth.account && !auth.is_superadmin) {
+    return <AccountSettings auth={auth} onRefresh={onRefresh} onClose={() => setShowSettings(false)} />;
+  }
   const [profiles, setProfiles] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [showAdd, setShowAdd] = React.useState(false);
@@ -175,8 +237,11 @@ function ProfileScreen({ onSelect, auth, onLogout }) {
       {auth && auth.view_group_name && (
         <div className="group-bar">
           <span>{TXT.people} 群組：<b>{auth.view_group_name}</b></span>
-          {auth.account && !auth.is_superadmin && onLogout && (
-            <button className="btn-logout" onClick={onLogout}>登出</button>
+          {auth.account && !auth.is_superadmin && (
+            <span className="group-bar-actions">
+              <button className="btn-logout" onClick={() => setShowSettings(true)}>{TXT.gear} 帳號設定</button>
+              {onLogout && <button className="btn-logout" onClick={onLogout}>登出</button>}
+            </span>
           )}
         </div>
       )}
@@ -1446,7 +1511,7 @@ function SuperBar({ groupName, onExit }) {
 }
 
 // ─── 已登入後的主程式（成員 / 超管檢視群組）───
-function MemberApp({ auth, onLogout, onExitView }) {
+function MemberApp({ auth, onLogout, onExitView, onRefresh }) {
   const [profile, setProfile] = React.useState(null);
   const [screen, setScreen] = React.useState("setup"); // setup | rankings | mistakes
   // 訪客模式不存任何資料（profileId 傳 null，session 不寫回伺服器）
@@ -1463,7 +1528,7 @@ function MemberApp({ auth, onLogout, onExitView }) {
 
   let body;
   if (!profile) {
-    body = <ProfileScreen onSelect={setProfile} auth={auth} onLogout={onLogout} />;
+    body = <ProfileScreen onSelect={setProfile} auth={auth} onLogout={onLogout} onRefresh={onRefresh} />;
   } else if (screen === "rankings") {
     body = <RankingsScreen profile={profile} onBack={() => setScreen("setup")} />;
   } else if (screen === "mistakes") {
@@ -1506,6 +1571,7 @@ function App() {
     auth={auth}
     onLogout={() => API.auth.logout().then(refresh)}
     onExitView={() => API.auth.exitView().then(refresh)}
+    onRefresh={refresh}
   />;
 }
 
