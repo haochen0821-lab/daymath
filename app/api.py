@@ -1,35 +1,61 @@
 import os
 import time
 from flask import Blueprint, request, jsonify, send_from_directory
-from app.db import get_db
+from app.db import get_db, MAX_USERS_PER_GROUP
+from app.auth import current_group_id, current_account, is_superadmin
 
 api = Blueprint("api", __name__, url_prefix="/api")
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "instance", "uploads")
 
 
+def _profile_in_current_group(conn, profile_id):
+    """確認該 profile 屬於目前作用中的群組（跨群組存取一律擋掉）。"""
+    gid = current_group_id()
+    if gid is None:
+        return False
+    row = conn.execute(
+        "SELECT 1 FROM profiles WHERE id = ? AND group_id = ?", (profile_id, gid)
+    ).fetchone()
+    return row is not None
+
+
 # ──────────── Profiles ────────────
 
 @api.route("/profiles", methods=["GET"])
 def list_profiles():
+    gid = current_group_id()
+    if gid is None:
+        return jsonify([])  # 未登入 / 超管尚未選群組
     conn = get_db()
-    rows = conn.execute("SELECT * FROM profiles ORDER BY created_at").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM profiles WHERE group_id = ? ORDER BY created_at", (gid,)
+    ).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
 
 @api.route("/profiles", methods=["POST"])
 def create_profile():
+    gid = current_group_id()
+    if gid is None:
+        return jsonify({"error": "請先登入"}), 401
     data = request.get_json()
     name = (data.get("name") or "").strip()
     avatar = data.get("avatar", "\U0001f9d1")
     if not name:
         return jsonify({"error": "name required"}), 400
-    pid = "p_" + str(int(time.time() * 1000))
     conn = get_db()
+    count = conn.execute(
+        "SELECT COUNT(*) AS c FROM profiles WHERE group_id = ?", (gid,)
+    ).fetchone()["c"]
+    if count >= MAX_USERS_PER_GROUP:
+        conn.close()
+        return jsonify({"error": f"每個群組最多 {MAX_USERS_PER_GROUP} 位使用者"}), 403
+    pid = "p_" + str(int(time.time() * 1000))
     conn.execute(
-        "INSERT INTO profiles (id, name, avatar, created_at) VALUES (?, ?, ?, ?)",
-        (pid, name, avatar, int(time.time())),
+        "INSERT INTO profiles (id, name, avatar, created_at, group_id) VALUES (?, ?, ?, ?, ?)",
+        (pid, name, avatar, int(time.time()), gid),
     )
     conn.commit()
     conn.close()
@@ -38,6 +64,11 @@ def create_profile():
 
 @api.route("/profiles/<pid>", methods=["PUT"])
 def update_profile(pid):
+    conn0 = get_db()
+    if not _profile_in_current_group(conn0, pid):
+        conn0.close()
+        return jsonify({"error": "forbidden"}), 403
+    conn0.close()
     data = request.get_json()
     fields, values = [], []
     if "name" in data:
@@ -62,6 +93,9 @@ def update_profile(pid):
 @api.route("/profiles/<pid>", methods=["DELETE"])
 def delete_profile(pid):
     conn = get_db()
+    if not _profile_in_current_group(conn, pid):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     conn.execute("DELETE FROM profiles WHERE id = ?", (pid,))
     conn.commit()
     conn.close()
@@ -72,6 +106,11 @@ def delete_profile(pid):
 
 @api.route("/history/<profile_id>", methods=["GET"])
 def get_history(profile_id):
+    _g = get_db()
+    if not _profile_in_current_group(_g, profile_id):
+        _g.close()
+        return jsonify({"error": "forbidden"}), 403
+    _g.close()
     op = request.args.get("operation")
     lvl = request.args.get("level")
     mode = request.args.get("mode")
@@ -109,6 +148,9 @@ def get_history(profile_id):
 def save_history():
     d = request.get_json()
     conn = get_db()
+    if not _profile_in_current_group(conn, d["profile_id"]):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     cur = conn.execute("""
         INSERT INTO history
         (profile_id, operation, level, mode, mode_value, total_questions,
@@ -144,6 +186,9 @@ def save_history():
 @api.route("/practice-time", methods=["GET"])
 def practice_time():
     """Return daily practice time per profile. Grouped by date (YYYY-MM-DD)."""
+    gid = current_group_id()
+    if gid is None:
+        return jsonify([])
     ts_from = request.args.get("from", "0")
     ts_to = request.args.get("to", str(int(time.time() * 1000 + 86400000)))
     conn = get_db()
@@ -153,10 +198,10 @@ def practice_time():
                SUM(practice_time_ms) as total_ms,
                COUNT(*) as sessions
         FROM history h JOIN profiles p ON h.profile_id = p.id
-        WHERE h.timestamp >= ? AND h.timestamp <= ?
+        WHERE h.timestamp >= ? AND h.timestamp <= ? AND p.group_id = ?
         GROUP BY p.id, day
         ORDER BY day DESC
-    """, (int(ts_from), int(ts_to))).fetchall()
+    """, (int(ts_from), int(ts_to), gid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -171,6 +216,9 @@ def leaderboard():
     mv = request.args.get("mode_value", "")
     if not (op and lvl and mode and mv):
         return jsonify([])
+    gid = current_group_id()
+    if gid is None:
+        return jsonify([])
 
     conn = get_db()
     if mode == "timeAttack":
@@ -179,7 +227,7 @@ def leaderboard():
                    MAX(h.correct_count) as correct_count,
                    h.accuracy, h.total_seconds, h.avg_time_ms
             FROM history h JOIN profiles p ON h.profile_id = p.id
-            WHERE h.operation = ? AND h.level = ? AND h.mode = ? AND h.mode_value = ?
+            WHERE h.operation = ? AND h.level = ? AND h.mode = ? AND h.mode_value = ? AND p.group_id = ?
             GROUP BY h.profile_id
             ORDER BY correct_count DESC
         """
@@ -189,11 +237,11 @@ def leaderboard():
                    h.correct_count,
                    h.accuracy, MIN(h.total_seconds) as total_seconds, h.avg_time_ms
             FROM history h JOIN profiles p ON h.profile_id = p.id
-            WHERE h.operation = ? AND h.level = ? AND h.mode = ? AND h.mode_value = ?
+            WHERE h.operation = ? AND h.level = ? AND h.mode = ? AND h.mode_value = ? AND p.group_id = ?
             GROUP BY h.profile_id
             ORDER BY total_seconds ASC
         """
-    rows = conn.execute(sql, (op, int(lvl), mode, int(mv))).fetchall()
+    rows = conn.execute(sql, (op, int(lvl), mode, int(mv), gid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -204,6 +252,9 @@ def leaderboard():
 def personal_bests(profile_id):
     """Return this profile's best for every operation/level/mode/mode_value combo."""
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     sprint = conn.execute("""
         SELECT operation, level, mode, mode_value,
                MIN(total_seconds) as best_seconds,
@@ -229,6 +280,9 @@ def personal_bests(profile_id):
 @api.route("/rankings", methods=["GET"])
 def rankings():
     """Return every profile's personal best for every operation/level/mode combo."""
+    gid = current_group_id()
+    if gid is None:
+        return jsonify([])
     conn = get_db()
 
     # Sprint: best = lowest total_seconds
@@ -238,9 +292,9 @@ def rankings():
                MIN(h.total_seconds) as best_seconds,
                h.correct_count, h.accuracy, h.avg_time_ms
         FROM history h JOIN profiles p ON h.profile_id = p.id
-        WHERE h.mode = 'sprint'
+        WHERE h.mode = 'sprint' AND p.group_id = ?
         GROUP BY h.profile_id, h.operation, h.level, h.mode_value
-    """).fetchall()
+    """, (gid,)).fetchall()
 
     # TimeAttack: best = highest correct_count
     ta_rows = conn.execute("""
@@ -249,9 +303,9 @@ def rankings():
                h.total_seconds as best_seconds,
                MAX(h.correct_count) as correct_count, h.accuracy, h.avg_time_ms
         FROM history h JOIN profiles p ON h.profile_id = p.id
-        WHERE h.mode = 'timeAttack'
+        WHERE h.mode = 'timeAttack' AND p.group_id = ?
         GROUP BY h.profile_id, h.operation, h.level, h.mode_value
-    """).fetchall()
+    """, (gid,)).fetchall()
 
     conn.close()
     return jsonify([dict(r) for r in sprint_rows] + [dict(r) for r in ta_rows])
@@ -293,6 +347,9 @@ def wrong_questions(profile_id):
     limit = request.args.get("limit", "50")
 
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
 
     # 取得已移除的題目
     dismissed = set()
@@ -356,6 +413,9 @@ def slowest_questions(profile_id):
     limit = request.args.get("limit", "10")
 
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
 
     dismissed = set()
     for r in conn.execute(
@@ -419,6 +479,9 @@ def save_review_results():
     if not profile_id or not answers:
         return jsonify({"error": "missing data"}), 400
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     for a in answers:
         conn.execute("""
             INSERT INTO review_attempts
@@ -444,6 +507,9 @@ def dismiss_question(profile_id):
     if not display or answer is None:
         return jsonify({"error": "missing data"}), 400
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     # 避免重複
     existing = conn.execute(
         """SELECT id FROM dismissed_questions
@@ -471,6 +537,9 @@ def restore_question(profile_id):
     if not display or answer is None:
         return jsonify({"error": "missing data"}), 400
     conn = get_db()
+    if not _profile_in_current_group(conn, profile_id):
+        conn.close()
+        return jsonify({"error": "forbidden"}), 403
     conn.execute(
         """DELETE FROM dismissed_questions
            WHERE profile_id = ? AND question_display = ? AND correct_answer = ?""",
@@ -485,6 +554,8 @@ def restore_question(profile_id):
 
 @api.route("/icon", methods=["POST"])
 def upload_icon():
+    if not is_superadmin():
+        return jsonify({"error": "forbidden"}), 403
     if "icon" not in request.files:
         return jsonify({"error": "no file"}), 400
     f = request.files["icon"]

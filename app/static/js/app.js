@@ -77,6 +77,20 @@ const API = {
   saveReviewResults: (pid,answers,ts) => fetch("/api/review-results",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile_id:pid,answers,timestamp:ts})}).then(r=>r.json()),
   dismissQuestion: (pid,display,answer) => fetch("/api/dismiss-question/"+pid,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question_display:display,correct_answer:answer})}).then(r=>r.json()),
   restoreQuestion: (pid,display,answer) => fetch("/api/restore-question/"+pid,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question_display:display,correct_answer:answer})}).then(r=>r.json()),
+  auth: {
+    me: () => fetch("/api/auth/me").then(r=>r.json()),
+    login: (username,password) => fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})}).then(r=>r.json()),
+    logout: () => fetch("/api/auth/logout",{method:"POST"}).then(r=>r.json()),
+    register: (username,password,group_name) => fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password,group_name})}).then(r=>r.json()),
+    changePassword: (old_password,new_password) => fetch("/api/auth/change-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({old_password,new_password})}).then(r=>r.json()),
+    overview: () => fetch("/api/auth/admin/overview").then(r=>r.json()),
+    approve: (id) => fetch("/api/auth/admin/approve/"+id,{method:"POST"}).then(r=>r.json()),
+    reject: (id) => fetch("/api/auth/admin/reject/"+id,{method:"POST"}).then(r=>r.json()),
+    resetPassword: (id,new_password) => fetch("/api/auth/admin/reset-password/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({new_password})}).then(r=>r.json()),
+    deleteGroup: (id) => fetch("/api/auth/admin/delete-group/"+id,{method:"POST"}).then(r=>r.json()),
+    viewGroup: (group_id) => fetch("/api/auth/admin/view-group",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({group_id})}).then(r=>r.json()),
+    exitView: () => fetch("/api/auth/admin/exit-view",{method:"POST"}).then(r=>r.json()),
+  },
 };
 
 // ─── Confetti ───
@@ -127,7 +141,7 @@ function HomeButton({ onClick }) {
 }
 
 // ─── Profile Screen (API) ───
-function ProfileScreen({ onSelect }) {
+function ProfileScreen({ onSelect, auth, onLogout }) {
   const [profiles, setProfiles] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [showAdd, setShowAdd] = React.useState(false);
@@ -158,6 +172,14 @@ function ProfileScreen({ onSelect }) {
         <h1 className="app-title">Daymath</h1>
         <p className="app-subtitle">{TXT.sparkle} 心算耐力與速度訓練 {TXT.sparkle}</p>
       </div>
+      {auth && auth.view_group_name && (
+        <div className="group-bar">
+          <span>{TXT.people} 群組：<b>{auth.view_group_name}</b></span>
+          {auth.account && !auth.is_superadmin && onLogout && (
+            <button className="btn-logout" onClick={onLogout}>登出</button>
+          )}
+        </div>
+      )}
       <div className="setup-card">
         <h3>{TXT.people} 選擇你的角色</h3>
         {loading && <p className="profile-empty">載入中...</p>}
@@ -1203,12 +1225,233 @@ function HistoryTab({ profile }) {
   );
 }
 
-// ─── Main App ───
-function App() {
+// ─── 登入 / 註冊畫面 ───
+function LoginScreen({ onAuthed }) {
+  const [tab, setTab] = React.useState("login"); // login | register
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [groupName, setGroupName] = React.useState("");
+  const [msg, setMsg] = React.useState(null); // {type,text}
+  const [busy, setBusy] = React.useState(false);
+
+  const reset = () => { setMsg(null); };
+
+  const doLogin = () => {
+    if (!username.trim() || !password) { setMsg({type:"err",text:"請輸入帳號和密碼"}); return; }
+    setBusy(true);
+    API.auth.login(username.trim(), password).then(r => {
+      setBusy(false);
+      if (r.error) { setMsg({type:"err",text:r.error}); return; }
+      onAuthed();
+    }).catch(() => { setBusy(false); setMsg({type:"err",text:"連線失敗"}); });
+  };
+
+  const doRegister = () => {
+    if (!username.trim() || !password || !groupName.trim()) { setMsg({type:"err",text:"帳號、密碼、群組名稱皆必填"}); return; }
+    setBusy(true);
+    API.auth.register(username.trim(), password, groupName.trim()).then(r => {
+      setBusy(false);
+      if (r.error) { setMsg({type:"err",text:r.error}); return; }
+      setMsg({type:"ok",text:r.message || "註冊已送出，等待管理員審核"});
+      setPassword(""); setGroupName("");
+      setTab("login");
+    }).catch(() => { setBusy(false); setMsg({type:"err",text:"連線失敗"}); });
+  };
+
+  return (
+    <div className="login-screen">
+      <div className="app-header">
+        <h1 className="app-title">Daymath</h1>
+        <p className="app-subtitle">{TXT.sparkle} 心算耐力與速度訓練 {TXT.sparkle}</p>
+      </div>
+      <div className="setup-card login-card">
+        <div className="rank-tabs sub-tabs">
+          <button className={"rank-tab"+(tab==="login"?" rank-tab-active":"")} onClick={()=>{setTab("login");reset();}}>登入</button>
+          <button className={"rank-tab"+(tab==="register"?" rank-tab-active":"")} onClick={()=>{setTab("register");reset();}}>註冊</button>
+        </div>
+        <input type="text" className="auth-input" placeholder="帳號" value={username}
+          onChange={e=>setUsername(e.target.value)} autoComplete="username" />
+        <input type="password" className="auth-input" placeholder="密碼" value={password}
+          onChange={e=>setPassword(e.target.value)}
+          onKeyDown={e=>{ if(e.key==="Enter" && tab==="login") doLogin(); }}
+          autoComplete={tab==="login"?"current-password":"new-password"} />
+        {tab==="register" && (
+          <input type="text" className="auth-input" placeholder="群組名稱（例如：王家）" value={groupName}
+            onChange={e=>setGroupName(e.target.value)} maxLength={20} />
+        )}
+        {msg && <div className={"auth-msg "+(msg.type==="ok"?"auth-msg-ok":"auth-msg-err")}>{msg.text}</div>}
+        <button className="btn btn-start" disabled={busy} onClick={tab==="login"?doLogin:doRegister}>
+          {busy ? "處理中..." : (tab==="login" ? TXT.rocket+" 登入" : TXT.plus+" 送出註冊")}
+        </button>
+        {tab==="register" && (
+          <p className="auth-hint">註冊後需等管理員審核通過才能登入；通過後即可在群組內新增最多 5 位使用者。</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 首次設定密碼（強制修改）───
+function ChangePasswordScreen({ me, onDone }) {
+  const [pw, setPw] = React.useState("");
+  const [pw2, setPw2] = React.useState("");
+  const [msg, setMsg] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const submit = () => {
+    if (pw.length < 4) { setMsg("密碼至少 4 個字元"); return; }
+    if (pw !== pw2) { setMsg("兩次密碼不一致"); return; }
+    setBusy(true);
+    API.auth.changePassword("", pw).then(r => {
+      setBusy(false);
+      if (r.error) { setMsg(r.error); return; }
+      onDone();
+    });
+  };
+  return (
+    <div className="login-screen">
+      <div className="app-header">
+        <h1 className="app-title">設定新密碼</h1>
+        <p className="app-subtitle">{me.account.username}，請先設定你自己的密碼</p>
+      </div>
+      <div className="setup-card login-card">
+        <input type="password" className="auth-input" placeholder="新密碼" value={pw} onChange={e=>setPw(e.target.value)} />
+        <input type="password" className="auth-input" placeholder="再次輸入新密碼" value={pw2} onChange={e=>setPw2(e.target.value)}
+          onKeyDown={e=>{ if(e.key==="Enter") submit(); }} />
+        {msg && <div className="auth-msg auth-msg-err">{msg}</div>}
+        <button className="btn btn-start" disabled={busy} onClick={submit}>{busy?"處理中...":"確認設定"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 超級管理員後台 ───
+function AdminScreen({ me, onChanged }) {
+  const [data, setData] = React.useState(null);
+  const [resetFor, setResetFor] = React.useState(null); // account id
+  const [resetPw, setResetPw] = React.useState("");
+  const [showChangePw, setShowChangePw] = React.useState(false);
+  const [oldPw, setOldPw] = React.useState(""); const [newPw, setNewPw] = React.useState("");
+  const [pwMsg, setPwMsg] = React.useState(null);
+
+  const load = () => API.auth.overview().then(setData).catch(()=>setData({groups:[],pending:[]}));
+  React.useEffect(() => { load(); }, []);
+
+  if (!data) return <div className="login-screen"><p className="profile-empty">載入中...</p></div>;
+
+  const enterGroup = (gid) => { API.auth.viewGroup(gid).then(() => onChanged()); };
+  const approve = (id) => API.auth.approve(id).then(load);
+  const reject = (id) => { if(confirm("確定拒絕這個註冊申請？")) API.auth.reject(id).then(load); };
+  const delGroup = (g) => { if(confirm("確定刪除群組「"+g.name+"」？\n該群組所有使用者、帳號與成績都會一併刪除！")) API.auth.deleteGroup(g.id).then(load); };
+  const doReset = (id) => {
+    if (resetPw.length < 4) { alert("密碼至少 4 個字元"); return; }
+    API.auth.resetPassword(id, resetPw).then(() => { setResetFor(null); setResetPw(""); alert("已重設密碼"); });
+  };
+  const changeOwnPw = () => {
+    if (newPw.length < 4) { setPwMsg("新密碼至少 4 個字元"); return; }
+    API.auth.changePassword(oldPw, newPw).then(r => {
+      if (r.error) { setPwMsg(r.error); return; }
+      setPwMsg(null); setShowChangePw(false); setOldPw(""); setNewPw(""); alert("密碼已修改");
+    });
+  };
+
+  return (
+    <div className="admin-screen">
+      <div className="app-header">
+        <h1 className="app-title">{TXT.gear} 超管後台</h1>
+        <p className="app-subtitle">{me.account.username}（超級管理員）</p>
+      </div>
+
+      <div className="setup-card">
+        <h3>{TXT.memo} 待審核註冊（{data.pending.length}）</h3>
+        {data.pending.length === 0 && <p className="profile-empty">目前沒有待審核的申請</p>}
+        {data.pending.map(p => (
+          <div key={p.id} className="admin-pending-row">
+            <div className="admin-pending-info">
+              <b>{p.username}</b>
+              <span className="admin-group-tag">群組：{p.group_name || "—"}</span>
+            </div>
+            <div className="admin-row-actions">
+              <button className="btn-approve" onClick={()=>approve(p.id)}>{TXT.check} 核准</button>
+              <button className="btn-reject" onClick={()=>reject(p.id)}>{TXT.cross} 拒絕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="setup-card">
+        <h3>{TXT.people} 所有群組（{data.groups.length}）</h3>
+        {data.groups.length === 0 && <p className="profile-empty">目前沒有群組</p>}
+        {data.groups.map(g => (
+          <div key={g.id} className="admin-group-card">
+            <div className="admin-group-head">
+              <span className="admin-group-name">{g.name}</span>
+              <span className="admin-group-meta">{g.profile_count}/{data.max_users_per_group} 位使用者</span>
+            </div>
+            <div className="admin-group-accounts">
+              {g.accounts.map(a => (
+                <span key={a.id} className={"admin-acct"+(a.status!=="approved"?" admin-acct-pending":"")}>
+                  {a.username}{a.status==="pending"?"（待審核）":a.status==="rejected"?"（已拒絕）":""}
+                  <button className="admin-acct-reset" onClick={()=>{setResetFor(resetFor===a.id?null:a.id);setResetPw("");}}>改密碼</button>
+                </span>
+              ))}
+            </div>
+            {resetFor && g.accounts.some(a=>a.id===resetFor) && (
+              <div className="admin-reset-box">
+                <input type="text" className="auth-input" placeholder="新密碼" value={resetPw} onChange={e=>setResetPw(e.target.value)} />
+                <button className="btn-approve" onClick={()=>doReset(resetFor)}>確認重設</button>
+                <button className="btn-reject" onClick={()=>{setResetFor(null);setResetPw("");}}>取消</button>
+              </div>
+            )}
+            <div className="admin-row-actions">
+              <button className="btn-enter-group" onClick={()=>enterGroup(g.id)}>{TXT.rocket} 進入此群組視角</button>
+              <button className="btn-reject" onClick={()=>delGroup(g)}>{TXT.trash} 刪除群組</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="setup-card">
+        {!showChangePw ? (
+          <button className="btn btn-cute" onClick={()=>setShowChangePw(true)}>修改我的密碼</button>
+        ) : (
+          <div className="admin-changepw">
+            <h3>修改超管密碼</h3>
+            <input type="password" className="auth-input" placeholder="舊密碼" value={oldPw} onChange={e=>setOldPw(e.target.value)} />
+            <input type="password" className="auth-input" placeholder="新密碼" value={newPw} onChange={e=>setNewPw(e.target.value)} />
+            {pwMsg && <div className="auth-msg auth-msg-err">{pwMsg}</div>}
+            <div className="profile-add-actions">
+              <button className="btn btn-cute btn-active" onClick={changeOwnPw}>確認</button>
+              <button className="btn btn-cute" onClick={()=>{setShowChangePw(false);setPwMsg(null);}}>取消</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <button className="btn btn-quit" onClick={()=>API.auth.logout().then(onChanged)} style={{width:"100%"}}>
+        登出
+      </button>
+      <a href="/admin" className="admin-link">{TXT.gear} PWA Icon 設定</a>
+    </div>
+  );
+}
+
+// ─── 超管檢視群組時的常駐切換列 ───
+function SuperBar({ groupName, onExit }) {
+  return (
+    <div className="super-bar">
+      <span className="super-bar-label">{TXT.gear} 超管檢視中：<b>{groupName}</b></span>
+      <button className="super-bar-btn" onClick={onExit}>🔙 切換回超管帳號</button>
+    </div>
+  );
+}
+
+// ─── 已登入後的主程式（成員 / 超管檢視群組）───
+function MemberApp({ auth, onLogout, onExitView }) {
   const [profile, setProfile] = React.useState(null);
   const [screen, setScreen] = React.useState("setup"); // setup | rankings | mistakes
   // 訪客模式不存任何資料（profileId 傳 null，session 不寫回伺服器）
   const session = useSession(profile && !profile.isGuest ? profile.id : null);
+  const impersonating = auth.is_superadmin && auth.view_group_id;
 
   const handleSwitchProfile = () => {
     session.resetSession();
@@ -1216,27 +1459,54 @@ function App() {
     setProfile(null);
   };
 
-  if (!profile) return <ProfileScreen onSelect={setProfile} />;
+  const superBar = impersonating ? <SuperBar groupName={auth.view_group_name} onExit={onExitView} /> : null;
 
-  if (screen === "rankings") {
-    return <RankingsScreen profile={profile} onBack={() => setScreen("setup")} />;
-  }
-
-  if (screen === "mistakes") {
-    return <MistakesScreen profile={profile} session={session}
+  let body;
+  if (!profile) {
+    body = <ProfileScreen onSelect={setProfile} auth={auth} onLogout={onLogout} />;
+  } else if (screen === "rankings") {
+    body = <RankingsScreen profile={profile} onBack={() => setScreen("setup")} />;
+  } else if (screen === "mistakes") {
+    body = <MistakesScreen profile={profile} session={session}
       onBack={() => { session.resetSession(); setScreen("setup"); }} />;
-  }
-
-  if (!session.config) {
-    return <SetupScreen
+  } else if (!session.config) {
+    body = <SetupScreen
       onStart={session.startSession}
       profile={profile}
       onSwitchProfile={handleSwitchProfile}
       onRankings={() => setScreen("rankings")}
       onMistakes={() => setScreen("mistakes")}
     />;
+  } else {
+    body = <PracticeScreen session={session} profile={profile} />;
   }
-  return <PracticeScreen session={session} profile={profile} />;
+
+  return (
+    <div className={impersonating ? "has-super-bar" : ""}>
+      {body}
+      {superBar}
+    </div>
+  );
+}
+
+// ─── Main App（認證閘門）───
+function App() {
+  const [auth, setAuth] = React.useState(undefined); // undefined=載入中
+  const refresh = React.useCallback(() => {
+    return API.auth.me().then(setAuth).catch(() => setAuth({ account: null }));
+  }, []);
+  React.useEffect(() => { refresh(); }, [refresh]);
+
+  if (auth === undefined) return <div className="login-screen"><p className="profile-empty">載入中...</p></div>;
+  if (!auth.account) return <LoginScreen onAuthed={refresh} />;
+  if (auth.account.must_change) return <ChangePasswordScreen me={auth} onDone={refresh} />;
+  if (auth.is_superadmin && !auth.view_group_id) return <AdminScreen me={auth} onChanged={refresh} />;
+
+  return <MemberApp
+    auth={auth}
+    onLogout={() => API.auth.logout().then(refresh)}
+    onExitView={() => API.auth.exitView().then(refresh)}
+  />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
