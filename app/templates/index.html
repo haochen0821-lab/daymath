@@ -12,13 +12,21 @@
     <script src="{{ url_for('static', filename='vendor/react-dom.production.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/babel.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+    <script>
+        // 強制 Babel 用 classic runtime（React.createElement），
+        // 避免新版 @babel/standalone 預設 automatic runtime 產生
+        // `import "react/jsx-runtime"` 而在瀏覽器報錯導致整頁白畫面。
+        Babel.registerPreset('react-classic', {
+            presets: [[Babel.availablePresets['react'], { runtime: 'classic' }]]
+        });
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ app_version }}">
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/questionGenerator.js') }}?v={{ app_version }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/useTimer.js') }}?v={{ app_version }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/useSession.js') }}?v={{ app_version }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" data-presets="react-classic" src="{{ url_for('static', filename='js/components/questionGenerator.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" data-presets="react-classic" src="{{ url_for('static', filename='js/components/useTimer.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" data-presets="react-classic" src="{{ url_for('static', filename='js/components/useSession.js') }}?v={{ app_version }}"></script>
+    <script type="text/babel" data-presets="react-classic" src="{{ url_for('static', filename='js/app.js') }}?v={{ app_version }}"></script>
 </body>
 </html>
